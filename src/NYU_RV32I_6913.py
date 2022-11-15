@@ -1,6 +1,9 @@
 import os
 import argparse
 
+from riscvmodel.code import decode, MachineDecodeError
+from riscvmodel.isa import Instruction
+
 # memory size, in reality, the memory size should be 2^32, but for this lab, for the space reason
 # we keep it as this large number, but the memory is still 32-bit addressable.
 MemSize = 1000
@@ -45,9 +48,9 @@ class DataMem(object):
             left = self.DMem
             zeroes = ["0" * 8] * (address - len(self.DMem))
         if address + 4 <= len(self.DMem):
-            right = self.DMem[address+4:]
+            right = self.DMem[address + 4:]
 
-        self.DMem = left + zeroes + [write_data[i: i+8] for i in range(0, 32, 8)] + right
+        self.DMem = left + zeroes + [write_data[i: i + 8] for i in range(0, 32, 8)] + right
 
     def output_data_mem(self):
         res_path = self.io_dir + "/" + self.id + "_DMEMResult.txt"
@@ -90,33 +93,51 @@ class State(object):
 
 
 class Core(object):
-    def __init__(self, ioDir, imem, dmem):
+    def __init__(self, ioDir: str, imem: InsMem, dmem: DataMem):
         self.myRF = RegisterFile(ioDir)
         self.cycle = 0
         self.halted = False
         self.ioDir = ioDir
         self.state = State()
         self.nextState = State()
-        self.ext_imem = imem
-        self.ext_dmem = dmem
+        self.ext_imem: InsMem = imem
+        self.ext_dmem: DataMem = dmem
 
 
 class SingleStageCore(Core):
-    def __init__(self, ioDir, imem, dmem):
-        super(SingleStageCore, self).__init__(ioDir + "\\SS_", imem, dmem)
-        self.opFilePath = ioDir + "\\StateResult_SS.txt"
+    def __init__(self, io_dir: str, imem: InsMem, dmem: DataMem):
+        super(SingleStageCore, self).__init__(io_dir + "/SS_", imem, dmem)
+        self.opFilePath = io_dir + "/StateResult_SS.txt"
 
     def step(self):
-        # Your implementation
 
-        self.halted = True
+        # IF
+        instruction_bytes = self.ext_imem.read_instr(self.state.IF["PC"])
+        self.nextState.IF["PC"] += 4
+        if instruction_bytes == "1"*32:
+            self.state.IF["nop"] = True
+
+        # ID
+        try:
+            instruction: Instruction = decode(int(instruction_bytes, 2))
+        except MachineDecodeError as e:
+            pass
+
+        # Exec
+
+        # Load/Store (MEM)
+
+        # WB
+
+        # self.halted = True
         if self.state.IF["nop"]:
             self.halted = True
 
-        self.myRF.outputRF(self.cycle)  # dump RF
+        self.myRF.output_rf(self.cycle)  # dump RF
         self.printState(self.nextState, self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
 
-        self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
+        # The end of the cycle and updates the current state with the values calculated in this cycle
+        self.state = self.nextState
         self.cycle += 1
 
     def printState(self, state, cycle):
@@ -154,7 +175,7 @@ class FiveStageCore(Core):
                 self.state.WB["nop"]:
             self.halted = True
 
-        self.myRF.outputRF(self.cycle)  # dump RF
+        self.myRF.output_rf(self.cycle)  # dump RF
         self.printState(self.nextState, self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
 
         self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
