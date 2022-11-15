@@ -10,10 +10,12 @@ class InsMem(object):
     def __init__(self, name, io_dir):
         self.id = name
 
-        with open(io_dir + "/imem.txt.txt") as im:
+        with open(io_dir + "/imem.txt") as im:
             self.IMem = [data.replace("\n", "") for data in im.readlines()]
 
-    def read_instr(self, read_address):
+    def read_instr(self, read_address: int):
+        if len(self.IMem) < read_address + 4:
+            raise Exception("Instruction MEM - Out of bound access")
         return "".join(self.IMem[read_address: read_address + 4])
 
 
@@ -24,14 +26,28 @@ class DataMem(object):
         with open(io_dir + "/dmem.txt") as dm:
             self.DMem = [data.replace("\n", "") for data in dm.readlines()]
 
-    def read_data(self, read_address):
+    def read_data(self, read_address: int):
         # read data memory
         # return 32 bit hex val
-        pass
+        if len(self.DMem) < read_address + 4:
+            raise Exception("Data MEM - Out of bound access")
+        return "".join(self.DMem[read_address: read_address + 4])
 
-    def write_data_mem(self, address, write_data):
+    def write_data_mem(self, address: int, write_data: str):
         # write data into byte addressable memory
-        pass
+        # Assuming data as 32 bit string
+
+        left, right, zeroes = [], [], []
+
+        if address <= len(self.DMem):
+            left = self.DMem[:address]
+        else:
+            left = self.DMem
+            zeroes = ["0" * 8] * (address - len(self.DMem))
+        if address + 4 <= len(self.DMem):
+            right = self.DMem[address+4:]
+
+        self.DMem = left + zeroes + [write_data[i: i+8] for i in range(0, 32, 8)] + right
 
     def output_data_mem(self):
         res_path = self.io_dir + "/" + self.id + "_DMEMResult.txt"
@@ -42,19 +58,17 @@ class DataMem(object):
 class RegisterFile(object):
     def __init__(self, io_dir):
         self.output_file = io_dir + "RFResult.txt"
-        self.Registers = [0x0 for i in range(32)]
+        self.registers = [0x0 for i in range(32)]
 
-    def readRF(self, Reg_addr):
-        # Fill in
-        pass
+    def read_rf(self, reg_addr):
+        return self.registers[reg_addr]
 
-    def writeRF(self, Reg_addr, Wrt_reg_data):
-        # Fill in
-        pass
+    def write_rf(self, reg_addr, wrt_reg_data):
+        self.registers[reg_addr] = wrt_reg_data
 
-    def outputRF(self, cycle):
+    def output_rf(self, cycle):
         op = ["-" * 70 + "\n", "State of RF after executing cycle:" + str(cycle) + "\n"]
-        op.extend([str(val) + "\n" for val in self.Registers])
+        op.extend([str(val) + "\n" for val in self.registers])
         if cycle == 0:
             perm = "w"
         else:
