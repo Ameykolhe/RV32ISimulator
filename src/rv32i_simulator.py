@@ -37,17 +37,20 @@ class SingleStageCore(Core):
         # ID
         try:
             instruction: Instruction = decode(int(instruction_bytes, 2))
+            instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction, self.ext_dmem,
+                                                                                          self.myRF)
+
+
+            alu_result = instruction_ob.execute()
+
+            # Load/Store (MEM)
+            mem_result = instruction_ob.mem(alu_result=alu_result)
+
+            # WB
+            wb_result = instruction_ob.wb(mem_result=mem_result, alu_result=alu_result)
         except MachineDecodeError as e:
             pass
 
-        # Exec
-        instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction, self.ext_dmem,
-                                                                                      self.myRF)
-        instruction_ob.execute()
-
-        # Load/Store (MEM)
-
-        # WB
 
         # self.halted = True
         if self.state.IF["nop"]:
