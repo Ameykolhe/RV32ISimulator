@@ -1,12 +1,11 @@
 import abc
 import importlib
 import os
-from urllib.response import addbase
 
 from riscvmodel.code import decode
 from riscvmodel.isa import Instruction
 
-from models import DataMem, RegisterFile
+from models import DataMem, RegisterFile, State
 
 
 class InstructionBase(metaclass=abc.ABCMeta):
@@ -213,59 +212,26 @@ class LW(InstructionIBase):
         return self.registers.write_rf(self.rd, data)
 
 
-# class JAL(InstructionBase):
-#     def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
-#         super(SW, self).__init__(instruction, memory, registers)
-#         self.rs1 = instruction.rs1
-#         self.rs2 = instruction.rs2
-#         self.imm = instruction.imm.value
-#
-#     def execute(self, *args, **kwargs):
-#         return self.registers.read_rf(self.rs1) + self.imm
-#
-#     def mem(self, *args, **kwargs):
-#         (address) = args
-#         self.memory.write_data_mem(address[0], '{:032b}'.format(self.registers.read_rf(self.rs2)))
-#
-#     def wb(self, *args, **kwargs):
-#         pass
-#
-#
-# class BEQ(InstructionBase):
-#     def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
-#         super(SW, self).__init__(instruction, memory, registers)
-#         self.rs1 = instruction.rs1
-#         self.rs2 = instruction.rs2
-#         self.imm = instruction.imm.value
-#
-#     def execute(self, *args, **kwargs):
-#         return self.registers.read_rf(self.rs1) + self.imm
-#
-#     def mem(self, *args, **kwargs):
-#         (address) = args
-#         self.memory.write_data_mem(address[0], '{:032b}'.format(self.registers.read_rf(self.rs2)))
-#
-#     def wb(self, *args, **kwargs):
-#         pass
-#
-#
-# class BNE(InstructionBase):
-#     def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
-#         super(SW, self).__init__(instruction, memory, registers)
-#         self.rs1 = instruction.rs1
-#         self.rs2 = instruction.rs2
-#         self.imm = instruction.imm.value
-#
-#     def execute(self, *args, **kwargs):
-#         return self.registers.read_rf(self.rs1) + self.imm
-#
-#     def mem(self, *args, **kwargs):
-#         (address) = args
-#         self.memory.write_data_mem(address[0], '{:032b}'.format(self.registers.read_rf(self.rs2)))
-#
-#     def wb(self, *args, **kwargs):
-#         pass
+class ADDER:
+    def __init__(self, instruction: Instruction, nextState: State(), registers: RegisterFile):
+        self.instruction = instruction
+        self.nextState = nextState
+        self.registers = registers
+        self.rs1 = instruction.rs1
+        self.rs2 = instruction.rs2
+        self.imm = instruction.imm.value
 
+    def get_pc(self, *args, **kwargs):
+        if self.instruction.mnemonic == 'beq':
+            if self.registers.read_rf(self.rs1) == self.registers.read_rf(self.rs2):
+                return self.nextState.IF["PC"] - 4 + self.imm
+            else:
+                return self.nextState.IF["PC"]
+        else:
+            if self.registers.read_rf(self.rs1) != self.registers.read_rf(self.rs2):
+                return self.nextState.IF["PC"] - 4 + self.imm
+            else:
+                return self.nextState.IF["PC"]
 
 class SW(InstructionSBase):
     def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
@@ -276,11 +242,11 @@ class SW(InstructionSBase):
 
 
 def get_instruction_class(mnemonic: str):
-    cls = getattr(importlib.import_module('instructions'), mnemonic.upper())
-    if cls is None:
-        raise Exception("Invalid Instruction")
-    else:
+    try:
+        cls = getattr(importlib.import_module('instructions'), mnemonic.upper())
         return cls
+    except AttributeError as e:
+        raise Exception("Invalid Instruction")
 
 
 def main():
