@@ -5,7 +5,7 @@ import os
 from riscvmodel.code import decode
 from riscvmodel.isa import Instruction
 
-from models import DataMem, RegisterFile
+from models import DataMem, RegisterFile, State
 
 
 class InstructionBase(metaclass=abc.ABCMeta):
@@ -28,30 +28,225 @@ class InstructionBase(metaclass=abc.ABCMeta):
         pass
 
 
-class ORI(InstructionBase):
-
+class InstructionRBase(InstructionBase):
     def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
-        super(ORI, self).__init__(instruction, memory, registers)
+        super(InstructionRBase, self).__init__(instruction, memory, registers)
         self.rs1 = instruction.rs1
+        self.rs2 = instruction.rs2
         self.rd = instruction.rd
-        self.imm = instruction.imm.value
 
+    @abc.abstractmethod
     def execute(self, *args, **kwargs):
-        return self.rs1 | self.imm
+        pass
 
     def mem(self, *args, **kwargs):
         pass
 
     def wb(self, *args, **kwargs):
+        data = kwargs['alu_result']
+        return self.registers.write_rf(self.rd, data)
+
+
+class InstructionIBase(InstructionBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(InstructionIBase, self).__init__(instruction, memory, registers)
+        self.rs1 = instruction.rs1
+        self.rd = instruction.rd
+        self.imm = instruction.imm.value
+
+    @abc.abstractmethod
+    def execute(self, *args, **kwargs):
+        pass
+
+    def mem(self, *args, **kwargs):
+        pass
+
+    def wb(self, *args, **kwargs):
+        data = kwargs['alu_result']
+        return self.registers.write_rf(self.rd, data)
+
+
+class InstructionSBase(InstructionBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(InstructionSBase, self).__init__(instruction, memory, registers)
+        self.rs1 = instruction.rs1
+        self.rs2 = instruction.rs2
+        self.imm = instruction.imm.value
+
+    @abc.abstractmethod
+    def execute(self, *args, **kwargs):
+        pass
+
+    def mem(self, *args, **kwargs):
+        address = kwargs['alu_result']
+        self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
+
+    def wb(self, *args, **kwargs):
         pass
 
 
+class InstructionBBase(InstructionBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(InstructionBBase, self).__init__(instruction, memory, registers)
+        self.rs1 = instruction.rs1
+        self.rs2 = instruction.rs2
+        self.imm = instruction.imm.value
+
+    @abc.abstractmethod
+    def execute(self, *args, **kwargs):
+        pass
+
+    def mem(self, *args, **kwargs):
+        address = kwargs['alu_result']
+        self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
+
+    def wb(self, *args, **kwargs):
+        pass
+
+
+class InstructionJBase(InstructionBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(InstructionSBase, self).__init__(instruction, memory, registers)
+        self.rs1 = instruction.rs1
+        self.rs2 = instruction.rs2
+        self.imm = instruction.imm.value
+
+    @abc.abstractmethod
+    def execute(self, *args, **kwargs):
+        pass
+
+    def mem(self, *args, **kwargs):
+        address = kwargs['alu_result']
+        self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
+
+    def wb(self, *args, **kwargs):
+        pass
+
+
+class ADD(InstructionRBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(ADD, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) + self.registers.read_rf(self.rs2)
+
+
+class SUB(InstructionRBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(SUB, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) - self.registers.read_rf(self.rs2)
+
+
+class XOR(InstructionRBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(XOR, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) ^ self.registers.read_rf(self.rs2)
+
+
+class OR(InstructionRBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(OR, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) | self.registers.read_rf(self.rs2)
+
+
+class AND(InstructionRBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(AND, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) & self.registers.read_rf(self.rs2)
+
+
+class ADDI(InstructionIBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(ADDI, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) + self.imm
+
+
+class XORI(InstructionIBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(XORI, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) ^ self.imm
+
+
+class ORI(InstructionIBase):
+
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(ORI, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) | self.imm
+
+
+class ANDI(InstructionIBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(ANDI, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) & self.imm
+
+
+class LW(InstructionIBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(LW, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) + self.imm
+
+    def mem(self, *args, **kwargs):
+        address = kwargs['alu_result']
+        return self.memory.read_data(address)
+
+    def wb(self, *args, **kwargs):
+        data = kwargs['mem_result']
+        return self.registers.write_rf(self.rd, data)
+
+
+class ADDER:
+    def __init__(self, instruction: Instruction, nextState: State(), registers: RegisterFile):
+        self.instruction = instruction
+        self.nextState = nextState
+        self.registers = registers
+        self.rs1 = instruction.rs1
+        self.rs2 = instruction.rs2
+        self.imm = instruction.imm.value
+
+    def get_pc(self, *args, **kwargs):
+        if self.instruction.mnemonic == 'beq':
+            if self.registers.read_rf(self.rs1) == self.registers.read_rf(self.rs2):
+                return self.nextState.IF["PC"] - 4 + self.imm
+            else:
+                return self.nextState.IF["PC"]
+        else:
+            if self.registers.read_rf(self.rs1) != self.registers.read_rf(self.rs2):
+                return self.nextState.IF["PC"] - 4 + self.imm
+            else:
+                return self.nextState.IF["PC"]
+
+class SW(InstructionSBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(SW, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) + self.imm
+
+
 def get_instruction_class(mnemonic: str):
-    cls = getattr(importlib.import_module('instructions'), mnemonic.upper())
-    if cls is None:
-        raise Exception("Invalid Instruction")
-    else:
+    try:
+        cls = getattr(importlib.import_module('instructions'), mnemonic.upper())
         return cls
+    except AttributeError as e:
+        raise Exception("Invalid Instruction")
 
 
 def main():

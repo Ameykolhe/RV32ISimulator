@@ -1,7 +1,7 @@
 from riscvmodel.code import decode, MachineDecodeError
 from riscvmodel.isa import Instruction
 
-from instructions import get_instruction_class, InstructionBase
+from instructions import get_instruction_class, InstructionBase, ADDER
 from models import InsMem, DataMem, RegisterFile, State
 
 # memory size, in reality, the memory size should be 2^32, but for this lab, for the space reason
@@ -37,17 +37,19 @@ class SingleStageCore(Core):
         # ID
         try:
             instruction: Instruction = decode(int(instruction_bytes, 2))
+            if instruction.mnemonic in ['beq', 'bne']:
+                self.nextState.IF["PC"] = ADDER(instruction, self.nextState, self.myRF).get_pc()
+            else:
+                instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
+                                                                                              self.ext_dmem,
+                                                                                              self.myRF)
+                alu_result = instruction_ob.execute()
+                # Load/Store (MEM)
+                mem_result = instruction_ob.mem(alu_result=alu_result)
+                # WB
+                wb_result = instruction_ob.wb(mem_result=mem_result, alu_result=alu_result)
         except MachineDecodeError as e:
             pass
-
-        # Exec
-        instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction, self.ext_dmem,
-                                                                                      self.myRF)
-        instruction_ob.execute()
-
-        # Load/Store (MEM)
-
-        # WB
 
         # self.halted = True
         if self.state.IF["nop"]:
