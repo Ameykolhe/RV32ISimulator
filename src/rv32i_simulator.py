@@ -1,7 +1,9 @@
+import copy
+
 from riscvmodel.code import decode, MachineDecodeError
 from riscvmodel.isa import Instruction
 
-from instructions import get_instruction_class, InstructionBase, ADDER
+from instructions import get_instruction_class, InstructionBase, ADDERBTYPE, ADDERJTYPE
 from models import InsMem, DataMem, RegisterFile, State
 
 # memory size, in reality, the memory size should be 2^32, but for this lab, for the space reason
@@ -34,15 +36,18 @@ class SingleStageCore(Core):
         if instruction_bytes == "1" * 32:
             self.state.IF["nop"] = True
 
-        # ID
         try:
+            # ID
             instruction: Instruction = decode(int(instruction_bytes, 2))
+
             if instruction.mnemonic in ['beq', 'bne']:
-                self.nextState.IF["PC"] = ADDER(instruction, self.nextState, self.myRF).get_pc()
+                self.nextState.IF["PC"] = ADDERBTYPE(instruction, self.state, self.myRF).get_pc()
+            elif instruction.mnemonic == 'jal':
+                self.nextState.IF["PC"] = ADDERJTYPE(instruction, self.state, self.myRF).get_pc()
             else:
                 instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
-                                                                                              self.ext_dmem,
-                                                                                              self.myRF)
+                                                                                              self.ext_dmem, self.myRF)
+                # Ex
                 alu_result = instruction_ob.execute()
                 # Load/Store (MEM)
                 mem_result = instruction_ob.mem(alu_result=alu_result)
@@ -59,7 +64,8 @@ class SingleStageCore(Core):
         self.printState(self.nextState, self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
 
         # The end of the cycle and updates the current state with the values calculated in this cycle
-        self.state = self.nextState
+        self.state = copy.deepcopy(self.nextState)
+        # self.nextState = copy.deepcopy(self.nextState)
         self.cycle += 1
 
     def printState(self, state, cycle):

@@ -212,10 +212,18 @@ class LW(InstructionIBase):
         return self.registers.write_rf(self.rd, data)
 
 
-class ADDER:
-    def __init__(self, instruction: Instruction, nextState: State(), registers: RegisterFile):
+class SW(InstructionSBase):
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
+        super(SW, self).__init__(instruction, memory, registers)
+
+    def execute(self, *args, **kwargs):
+        return self.registers.read_rf(self.rs1) + self.imm
+
+
+class ADDERBTYPE:
+    def __init__(self, instruction: Instruction, state: State(), registers: RegisterFile):
         self.instruction = instruction
-        self.nextState = nextState
+        self.state = state
         self.registers = registers
         self.rs1 = instruction.rs1
         self.rs2 = instruction.rs2
@@ -224,21 +232,27 @@ class ADDER:
     def get_pc(self, *args, **kwargs):
         if self.instruction.mnemonic == 'beq':
             if self.registers.read_rf(self.rs1) == self.registers.read_rf(self.rs2):
-                return self.nextState.IF["PC"] - 4 + self.imm
+                return self.state.IF["PC"] + self.imm
             else:
-                return self.nextState.IF["PC"]
+                return self.state.IF["PC"] + 4
         else:
             if self.registers.read_rf(self.rs1) != self.registers.read_rf(self.rs2):
-                return self.nextState.IF["PC"] - 4 + self.imm
+                return self.state.IF["PC"] + self.imm
             else:
-                return self.nextState.IF["PC"]
+                return self.state.IF["PC"] + 4
 
-class SW(InstructionSBase):
-    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile):
-        super(SW, self).__init__(instruction, memory, registers)
 
-    def execute(self, *args, **kwargs):
-        return self.registers.read_rf(self.rs1) + self.imm
+class ADDERJTYPE:
+    def __init__(self, instruction: Instruction, state: State(), registers: RegisterFile):
+        self.instruction = instruction
+        self.state = state
+        self.registers = registers
+        self.rd = instruction.rd
+        self.imm = instruction.imm.value
+
+    def get_pc(self, *args, **kwargs):
+        self.registers.write_rf(self.rd, self.state.IF["PC"] + 4)
+        return self.state.IF["PC"] + self.imm
 
 
 def get_instruction_class(mnemonic: str):
