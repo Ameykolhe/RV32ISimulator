@@ -1,0 +1,84 @@
+State after executing cycle:	0
+IF.PC:	4
+IF.nop:	0
+State after executing cycle:	1
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	2
+IF.PC:	12
+IF.nop:	0
+State after executing cycle:	3
+IF.PC:	16
+IF.nop:	0
+State after executing cycle:	4
+IF.PC:	24
+IF.nop:	0
+State after executing cycle:	5
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	6
+IF.PC:	12
+IF.nop:	0
+State after executing cycle:	7
+IF.PC:	16
+IF.nop:	0
+State after executing cycle:	8
+IF.PC:	24
+IF.nop:	0
+State after executing cycle:	9
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	10
+IF.PC:	12
+IF.nop:	0
+State after executing cycle:	11
+IF.PC:	16
+IF.nop:	0
+State after executing cycle:	12
+IF.PC:	24
+IF.nop:	0
+State after executing cycle:	13
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	14
+IF.PC:	12
+IF.nop:	0
+State after executing cycle:	15
+IF.PC:	16
+IF.nop:	0
+State after executing cycle:	16
+IF.PC:	20
+IF.nop:	0
+State after executing cycle:	17
+IF.PC:	32
+IF.nop:	0
+State after executing cycle:	18
+IF.PC:	36
+IF.nop:	0
+State after executing cycle:	19
+IF.PC:	40
+IF.nop:	0
+State after executing cycle:	20
+IF.PC:	24
+IF.nop:	0
+State after executing cycle:	21
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	22
+IF.PC:	12
+IF.nop:	0
+State after executing cycle:	23
+IF.PC:	16
+IF.nop:	0
+State after executing cycle:	24
+IF.PC:	24
+IF.nop:	0
+State after executing cycle:	25
+IF.PC:	28
+IF.nop:	0
+State after executing cycle:	26
+IF.PC:	28
+IF.nop:	1
+State after executing cycle:	27
+IF.PC:	28
+IF.nop:	1
