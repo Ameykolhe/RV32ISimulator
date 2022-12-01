@@ -22,6 +22,7 @@ class DataMem(object):
         self.io_dir = io_dir
         with open(io_dir + "/dmem.txt") as dm:
             self.DMem = [data.replace("\n", "") for data in dm.readlines()]
+            self.DMem += ["0" * 8] * (1000 - len(self.DMem))
 
     def read_data(self, read_address: int) -> int:
         # read data memory
