@@ -39,7 +39,6 @@ class SingleStageCore(Core):
         try:
             # ID
             instruction: Instruction = decode(int(instruction_bytes, 2))
-
             if instruction.mnemonic in ['beq', 'bne']:
                 self.nextState.IF["PC"] = ADDERBTYPE(instruction, self.state, self.myRF).get_pc()
             elif instruction.mnemonic == 'jal':
@@ -84,7 +83,7 @@ class SingleStageCore(Core):
 class FiveStageCore(Core):
     def __init__(self, ioDir, imem, dmem):
         super(FiveStageCore, self).__init__(ioDir + "\\FS_", imem, dmem)
-        self.opFilePath = ioDir + "\\StateResult_FS.txt"
+        self.opFilePath = ioDir + "/StateResult_FS.txt"
 
     def step(self):
         # Your implementation

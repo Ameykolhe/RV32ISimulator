@@ -1,3 +1,8 @@
+import ctypes
+
+from bitstring import BitArray
+
+
 class InsMem(object):
     def __init__(self, name, io_dir):
         self.id = name
@@ -18,16 +23,19 @@ class DataMem(object):
         with open(io_dir + "/dmem.txt") as dm:
             self.DMem = [data.replace("\n", "") for data in dm.readlines()]
 
-    def read_data(self, read_address: int):
+    def read_data(self, read_address: int) -> int:
         # read data memory
-        # return 32 bit hex val
+        # return 32-bit signed int value
         if len(self.DMem) < read_address + 4:
             raise Exception("Data MEM - Out of bound access")
-        return "".join(self.DMem[read_address: read_address + 4])
+        return BitArray(bin="".join(self.DMem[read_address: read_address + 4])).int32
 
-    def write_data_mem(self, address: int, write_data: str):
+    def write_data_mem(self, address: int, write_data: int):
         # write data into byte addressable memory
-        # Assuming data as 32 bit string
+        # Assuming data as 32 bit signed integer
+
+        # Converting from int to bin
+        write_data = '{:032b}'.format(write_data & 0xffffffff)
 
         left, right, zeroes = [], [], []
 
@@ -50,17 +58,18 @@ class DataMem(object):
 class RegisterFile(object):
     def __init__(self, io_dir):
         self.output_file = io_dir + "RFResult.txt"
-        self.registers = [0x0 for i in range(32)]
+        self.registers = [0x0 for _ in range(32)]
 
-    def read_rf(self, reg_addr):
+    def read_rf(self, reg_addr: int) -> int:
         return self.registers[reg_addr]
 
-    def write_rf(self, reg_addr, wrt_reg_data):
-        self.registers[reg_addr] = wrt_reg_data
+    def write_rf(self, reg_addr: int, wrt_reg_data: int):
+        if reg_addr != 0:
+            self.registers[reg_addr] = wrt_reg_data
 
     def output_rf(self, cycle):
-        op = ["-" * 70 + "\n", "State of RF after executing cycle:" + str(cycle) + "\n"]
-        op.extend([str(val) + "\n" for val in self.registers])
+        op = ["State of RF after executing cycle:\t" + str(cycle) + "\n"]
+        op.extend(['{:032b}'.format(val & 0xffffffff) + "\n" for val in self.registers])
         if cycle == 0:
             perm = "w"
         else:

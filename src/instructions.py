@@ -79,7 +79,8 @@ class InstructionSBase(InstructionBase):
 
     def mem(self, *args, **kwargs):
         address = kwargs['alu_result']
-        self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
+        data = self.registers.read_rf(self.rs2)
+        self.memory.write_data_mem(address, data)
 
     def wb(self, *args, **kwargs):
         pass
@@ -257,6 +258,8 @@ class ADDERJTYPE:
 
 def get_instruction_class(mnemonic: str):
     try:
+        if mnemonic == "lb":
+            mnemonic = "lw"
         cls = getattr(importlib.import_module('instructions'), mnemonic.upper())
         return cls
     except AttributeError as e:
