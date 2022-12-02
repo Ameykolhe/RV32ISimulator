@@ -45,7 +45,9 @@ class SingleStageCore(Core):
                 self.nextState.IF["PC"] = ADDERJTYPE(instruction, self.state, self.myRF).get_pc()
             else:
                 instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
-                                                                                              self.ext_dmem, self.myRF)
+                                                                                              self.ext_dmem, self.myRF,
+                                                                                              self.state,
+                                                                                              self.nextState)
                 # Ex
                 alu_result = instruction_ob.execute()
                 # Load/Store (MEM)
@@ -89,15 +91,35 @@ class FiveStageCore(Core):
 
     def step(self):
         # Your implementation
-        # --------------------- WB stage ---------------------
 
-        # --------------------- MEM stage --------------------
+        # --------------------- IF stage ----------------------
+        self.nextState.ID["instruction_bytes"] = self.ext_imem.read_instr(self.state.IF["PC"])
+        self.nextState.ID["nop"] = False
+        if self.nextState.ID["instruction_bytes"] == "1" * 32:
+            self.nextState.IF["nop"] = True
+        else:
+            self.nextState.IF["PC"] += 4
 
-        # --------------------- EX stage ---------------------
+        # --------------------- ID stage ----------------------
+        if self.cycle > 0:
+            instruction = decode(int(self.state.ID["instruction_bytes"], 2))
+            instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
+                                                                                          self.ext_dmem, self.myRF,
+                                                                                          self.state,
+                                                                                          self.nextState)
+            instruction_ob.decode()
 
-        # --------------------- ID stage ---------------------
+        # --------------------- EX stage ----------------------
+        if self.cycle > 1:
+            pass
 
-        # --------------------- IF stage ---------------------
+        # --------------------- MEM stage ---------------------
+        if self.cycle > 2:
+            pass
+
+        # --------------------- WB stage ----------------------
+        if self.cycle > 3:
+            pass
 
         self.halted = True
         if self.state.IF["nop"] and self.state.ID["nop"] and self.state.EX["nop"] and self.state.MEM["nop"] and \
@@ -107,7 +129,7 @@ class FiveStageCore(Core):
         self.myRF.output_rf(self.cycle)  # dump RF
         self.printState(self.nextState, self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
 
-        self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
+        self.state = copy.deepcopy(self.nextState)
         self.cycle += 1
 
     def printState(self, state, cycle):
