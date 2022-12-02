@@ -1,5 +1,3 @@
-import ctypes
-
 from bitstring import BitArray
 
 
@@ -51,7 +49,10 @@ class DataMem(object):
         self.DMem = left + zeroes + [write_data[i: i + 8] for i in range(0, 32, 8)] + right
 
     def output_data_mem(self):
-        res_path = self.io_dir + "/" + self.id + "_DMEMResult.txt"
+        if self.id == 'SS':
+            res_path = self.io_dir + "/output/single_stage/" + self.id + "_DMEMResult.txt"
+        else:
+            res_path = self.io_dir + "/output/five_stage/" + self.id + "_DMEMResult.txt"
         with open(res_path, "w") as rp:
             rp.writelines([str(data) + "\n" for data in self.DMem])
 
