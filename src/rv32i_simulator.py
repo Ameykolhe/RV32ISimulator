@@ -25,16 +25,16 @@ class Core(object):
 
 class SingleStageCore(Core):
     def __init__(self, io_dir: str, imem: InsMem, dmem: DataMem):
-        super(SingleStageCore, self).__init__(io_dir + "/SS_", imem, dmem)
-        self.opFilePath = io_dir + "/StateResult_SS.txt"
+        super(SingleStageCore, self).__init__(io_dir + "/output/single_stage/SS_", imem, dmem)
+        self.opFilePath = io_dir + "/output/single_stage/StateResult_SS.txt"
 
     def step(self):
-
         # IF
         instruction_bytes = self.ext_imem.read_instr(self.state.IF["PC"])
-        self.nextState.IF["PC"] += 4
         if instruction_bytes == "1" * 32:
-            self.state.IF["nop"] = True
+            self.nextState.IF["nop"] = True
+        else:
+            self.nextState.IF["PC"] += 4
 
         try:
             # ID
@@ -53,10 +53,12 @@ class SingleStageCore(Core):
                 # WB
                 wb_result = instruction_ob.wb(mem_result=mem_result, alu_result=alu_result)
         except MachineDecodeError as e:
-            pass
-
+            if "{:08x}".format(e.word) == 'ffffffff':
+                pass
+            else:
+                raise Exception("Invalid Instruction to Decode")
         # self.halted = True
-        if self.state.IF["nop"]:
+        if self.nextState.IF["nop"]:
             self.halted = True
 
         self.myRF.output_rf(self.cycle)  # dump RF
@@ -82,8 +84,8 @@ class SingleStageCore(Core):
 
 class FiveStageCore(Core):
     def __init__(self, ioDir, imem, dmem):
-        super(FiveStageCore, self).__init__(ioDir + "\\FS_", imem, dmem)
-        self.opFilePath = ioDir + "/StateResult_FS.txt"
+        super(FiveStageCore, self).__init__(ioDir + "/output/five_stage/FS_", imem, dmem)
+        self.opFilePath = ioDir + "/output/five_stage/StateResult_FS.txt"
 
     def step(self):
         # Your implementation
