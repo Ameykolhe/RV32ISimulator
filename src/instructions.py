@@ -6,8 +6,14 @@ from abc import ABC
 from riscvmodel.code import decode
 from riscvmodel.isa import Instruction
 
-from models import DataMem, RegisterFile, State
+from models import DataMem, RegisterFile, State, EXState, WBState, MEMState
 
+
+# TODO:
+#   1. NOP Carry forwarding
+#   2. Halt logic
+#   3. Hazard Handling
+#   4. Handle B and J type instructions
 
 class InstructionBase(metaclass=abc.ABCMeta):
 
@@ -30,7 +36,6 @@ class InstructionBase(metaclass=abc.ABCMeta):
     def mem_ss(self, *args, **kwargs):
         pass
 
-    @abc.abstractmethod
     def wb_ss(self, *args, **kwargs):
         pass
 
@@ -42,12 +47,19 @@ class InstructionBase(metaclass=abc.ABCMeta):
     def execute_fs(self, *args, **kwargs):
         pass
 
-    def wb_fs(self, *args, **kwargs):
-        pass
-
-    @abc.abstractmethod
     def mem_fs(self, *args, **kwargs):
-        pass
+        wb_state = WBState()
+        wb_state.set_attributes(
+            instruction_ob=self.state.MEM.instruction_ob,
+            store_data=self.state.MEM.store_data,
+            write_register_addr=self.state.MEM.write_register_addr,
+            write_back_enable=self.state.MEM.write_back_enable
+        )
+        self.nextState.WB = wb_state
+
+    def wb_fs(self, *args, **kwargs):
+        if self.state.WB.write_back_enable:
+            self.registers.write_rf(self.state.WB.write_register_addr, self.state.WB.store_data)
 
     def decode(self, *args, **kwargs):
         if self.stages == "SS":
@@ -87,11 +99,34 @@ class InstructionRBase(InstructionBase, ABC):
         return self.registers.write_rf(self.rd, data)
 
     def decode_fs(self, *args, **kwargs):
-        self.nextState.ID["rs1"] = self.rs1
-        self.nextState.ID["rs2"] = self.rs2
-        self.nextState.ID["rd"] = self.rd
-        self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
-        self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
+        ex_state = EXState()
+
+        # TODO: Handle Hazards
+        #   set nop for EX state
+        #   will be applicable in R, I, S, B, J type instructions
+        # EX to EX
+
+        # MEM to EX
+
+        ex_state.set_attributes(
+            instruction_ob=self,
+            nop=self.state.ID.nop,
+            operand1=self.registers.read_rf(self.rs1),
+            operand2=self.registers.read_rf(self.rs2),
+            destination_register=self.rd,
+            write_back_enable=True
+        )
+        self.nextState.EX = ex_state
+
+    def execute_fs(self, *args, **kwargs):
+        mem_state = MEMState()
+        mem_state.set_attributes(
+            instruction_ob=self,
+            nop=self.state.EX.nop,
+            write_register_addr=self.state.EX.destination_register,
+            write_back_enable=True
+        )
+        self.nextState.MEM = mem_state
 
 
 class InstructionIBase(InstructionBase, ABC):
@@ -107,10 +142,26 @@ class InstructionIBase(InstructionBase, ABC):
         return self.registers.write_rf(self.rd, data)
 
     def decode_fs(self, *args, **kwargs):
-        self.nextState.ID["rs1"] = self.rs1
-        self.nextState.ID["imm"] = self.imm
-        self.nextState.ID["rd"] = self.rd
-        self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
+        ex_state = EXState()
+        ex_state.set_attributes(
+            instruction_ob=self,
+            nop=self.state.ID.nop,
+            operand1=self.registers.read_rf(self.rs1),
+            operand2=self.imm,
+            destination_register=self.rd,
+            write_back_enable=True
+        )
+        self.nextState.EX = ex_state
+
+    def execute_fs(self, *args, **kwargs):
+        mem_state = MEMState()
+        mem_state.set_attributes(
+            instruction_ob=self,
+            nop=self.state.EX.nop,
+            write_register_addr=self.state.EX.destination_register,
+            write_back_enable=True
+        )
+        self.nextState.MEM = mem_state
 
 
 class InstructionSBase(InstructionBase, ABC):
@@ -127,11 +178,37 @@ class InstructionSBase(InstructionBase, ABC):
         self.memory.write_data_mem(address, data)
 
     def decode_fs(self, *args, **kwargs):
-        self.nextState.ID["rs1"] = self.rs1
-        self.nextState.ID["rs2"] = self.rs2
-        self.nextState.ID["imm"] = self.imm
-        self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
-        self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
+        ex_state = EXState()
+        ex_state.set_attributes(
+            instruction_ob=self,
+            nop=self.state.ID.nop,
+            operand1=self.registers.read_rf(self.rs1),
+            operand2=self.imm,
+            destination_register=self.rs2,
+            write_data_mem=True
+        )
+        self.nextState.EX = ex_state
+
+    def execute_fs(self, *args, **kwargs):
+        mem_state = MEMState()
+        mem_state.set_attributes(
+            instruction_ob=self,
+            nop=self.state.EX.nop,
+            data_address=self.state.EX.operand1 + self.state.EX.operand1,
+            store_data=self.state.EX.store_data,
+            write_data_mem=True
+        )
+        self.nextState.MEM = mem_state
+
+    def mem_fs(self, *args, **kwargs):
+        if self.state.MEM.write_data_mem:
+            self.memory.write_data_mem(self.state.MEM.data_address, self.state.MEM.store_data)
+        wb_state = WBState()
+        wb_state.set_attributes(
+            instruction_ob=self,
+
+        )
+        self.nextState.WB = wb_state
 
 
 class InstructionBBase(InstructionBase, ABC):
@@ -147,11 +224,12 @@ class InstructionBBase(InstructionBase, ABC):
         self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
 
     def decode_fs(self, *args, **kwargs):
-        self.nextState.ID["rs1"] = self.rs1
-        self.nextState.ID["rs2"] = self.rs2
-        self.nextState.ID["imm"] = self.imm
-        self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
-        self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
+        # self.nextState.ID["rs1"] = self.rs1
+        # self.nextState.ID["rs2"] = self.rs2
+        # self.nextState.ID["imm"] = self.imm
+        # self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
+        # self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
+        pass
 
 
 class InstructionJBase(InstructionBase, ABC):
@@ -167,11 +245,12 @@ class InstructionJBase(InstructionBase, ABC):
         self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
 
     def decode_fs(self, *args, **kwargs):
-        self.nextState.ID["rs1"] = self.rs1
-        self.nextState.ID["rs2"] = self.rs2
-        self.nextState.ID["imm"] = self.imm
-        self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
-        self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
+        # self.nextState.ID["rs1"] = self.rs1
+        # self.nextState.ID["rs2"] = self.rs2
+        # self.nextState.ID["imm"] = self.imm
+        # self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
+        # self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
+        pass
 
 
 class ADD(InstructionRBase):
@@ -183,13 +262,8 @@ class ADD(InstructionRBase):
         return self.registers.read_rf(self.rs1) + self.registers.read_rf(self.rs2)
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] + self.state.ID["rs2_data"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(ADD, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 + self.state.EX.operand2
 
 
 class SUB(InstructionRBase):
@@ -202,13 +276,8 @@ class SUB(InstructionRBase):
         return self.registers.read_rf(self.rs1) - self.registers.read_rf(self.rs2)
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] - self.state.ID["rs2_data"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(SUB, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 - self.state.EX.operand2
 
 
 class XOR(InstructionRBase):
@@ -221,13 +290,8 @@ class XOR(InstructionRBase):
         return self.registers.read_rf(self.rs1) ^ self.registers.read_rf(self.rs2)
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] ^ self.state.ID["rs2_data"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(XOR, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 ^ self.state.EX.operand2
 
 
 class OR(InstructionRBase):
@@ -240,13 +304,8 @@ class OR(InstructionRBase):
         return self.registers.read_rf(self.rs1) | self.registers.read_rf(self.rs2)
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] | self.state.ID["rs2_data"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(OR, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 | self.state.EX.operand2
 
 
 class AND(InstructionRBase):
@@ -258,13 +317,8 @@ class AND(InstructionRBase):
         return self.registers.read_rf(self.rs1) & self.registers.read_rf(self.rs2)
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] & self.state.ID["rs2_data"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(AND, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 & self.state.EX.operand2
 
 
 class ADDI(InstructionIBase):
@@ -276,13 +330,8 @@ class ADDI(InstructionIBase):
         return self.registers.read_rf(self.rs1) + self.imm
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] + self.state.ID["imm"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(ADDI, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 + self.state.EX.operand2
 
 
 class XORI(InstructionIBase):
@@ -294,13 +343,8 @@ class XORI(InstructionIBase):
         return self.registers.read_rf(self.rs1) ^ self.imm
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] ^ self.state.ID["imm"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(XORI, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 ^ self.state.EX.operand2
 
 
 class ORI(InstructionIBase):
@@ -313,13 +357,8 @@ class ORI(InstructionIBase):
         return self.registers.read_rf(self.rs1) | self.imm
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] | self.state.ID["imm"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(ORI, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 | self.state.EX.operand2
 
 
 class ANDI(InstructionIBase):
@@ -331,13 +370,8 @@ class ANDI(InstructionIBase):
         return self.registers.read_rf(self.rs1) & self.imm
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] & self.state.ID["imm"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(ANDI, self).execute_fs()
+        self.nextState.MEM.store_data = self.state.EX.operand1 & self.state.EX.operand2
 
 
 class LW(InstructionIBase):
@@ -357,13 +391,11 @@ class LW(InstructionIBase):
         return self.registers.write_rf(self.rd, data)
 
     def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] + self.state.ID["imm"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
+        super(ADD, self).execute_fs()
+        self.nextState.MEM.set_attributes(
+            data_address=self.state.EX.operand1 + self.state.EX.operand2,
+            read_data_mem=True
+        )
 
 
 class SW(InstructionSBase):
@@ -376,12 +408,6 @@ class SW(InstructionSBase):
 
     def execute_fs(self, *args, **kwargs):
         self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] + self.state.ID["imm"]
-
-    def mem_fs(self, *args, **kwargs):
-        pass
-
-    def wb_fs(self, *args, **kwargs):
-        pass
 
 
 class ADDERBTYPE:

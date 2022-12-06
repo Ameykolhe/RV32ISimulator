@@ -18,7 +18,9 @@ class Core(object):
         self.halted = False
         self.ioDir = ioDir
         self.state = State()
+        self.state.nop_init()
         self.nextState = State()
+        self.nextState.nop_init()
         self.ext_imem: InsMem = imem
         self.ext_dmem: DataMem = dmem
 
@@ -30,19 +32,19 @@ class SingleStageCore(Core):
 
     def step(self):
         # IF
-        instruction_bytes = self.ext_imem.read_instr(self.state.IF["PC"])
+        instruction_bytes = self.ext_imem.read_instr(self.state.IF.PC)
         if instruction_bytes == "1" * 32:
-            self.nextState.IF["nop"] = True
+            self.nextState.IF.nop = True
         else:
-            self.nextState.IF["PC"] += 4
+            self.nextState.IF.PC += 4
 
         try:
             # ID
             instruction: Instruction = decode(int(instruction_bytes, 2))
             if instruction.mnemonic in ['beq', 'bne']:
-                self.nextState.IF["PC"] = ADDERBTYPE(instruction, self.state, self.myRF).get_pc()
+                self.nextState.IF.PC = ADDERBTYPE(instruction, self.state, self.myRF).get_pc()
             elif instruction.mnemonic == 'jal':
-                self.nextState.IF["PC"] = ADDERJTYPE(instruction, self.state, self.myRF).get_pc()
+                self.nextState.IF.PC = ADDERJTYPE(instruction, self.state, self.myRF).get_pc()
             else:
                 instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
                                                                                               self.ext_dmem, self.myRF,
@@ -60,7 +62,7 @@ class SingleStageCore(Core):
             else:
                 raise Exception("Invalid Instruction to Decode")
         # self.halted = True
-        if self.nextState.IF["nop"]:
+        if self.state.IF.nop:
             self.halted = True
 
         self.myRF.output_rf(self.cycle)  # dump RF
@@ -73,8 +75,8 @@ class SingleStageCore(Core):
 
     def printState(self, state, cycle):
         printstate = ["-" * 70 + "\n", "State after executing cycle: " + str(cycle) + "\n"]
-        printstate.append("IF.PC: " + str(state.IF["PC"]) + "\n")
-        printstate.append("IF.nop: " + str(state.IF["nop"]) + "\n")
+        printstate.append("IF.PC: " + str(state.IF.PC) + "\n")
+        printstate.append("IF.nop: " + str(state.IF.nop) + "\n")
 
         if (cycle == 0):
             perm = "w"
@@ -92,38 +94,37 @@ class FiveStageCore(Core):
     def step(self):
         # Your implementation
 
+        # --------------------- WB stage ----------------------
+        if not self.state.WB.nop:
+            self.state.WB.instruction_ob.wb()
+
+        # --------------------- MEM stage ---------------------
+        if not self.state.MEM.nop:
+            self.state.MEM.instruction_ob.mem()
+
         # --------------------- IF stage ----------------------
-        self.nextState.ID["instruction_bytes"] = self.ext_imem.read_instr(self.state.IF["PC"])
-        self.nextState.ID["nop"] = False
-        if self.nextState.ID["instruction_bytes"] == "1" * 32:
-            self.nextState.IF["nop"] = True
-        else:
-            self.nextState.IF["PC"] += 4
+        if not self.state.IF.nop:
+            self.nextState.ID.instruction_bytes = self.ext_imem.read_instr(self.state.IF.PC)
+            self.nextState.ID.nop = False
+            if self.nextState.ID.instruction_bytes == "1" * 32:
+                self.nextState.IF.halted = True
+            else:
+                self.nextState.IF.PC += 4
 
         # --------------------- ID stage ----------------------
-        if self.cycle > 0:
-            instruction = decode(int(self.state.ID["instruction_bytes"], 2))
-            instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
-                                                                                          self.ext_dmem, self.myRF,
-                                                                                          self.state,
+        if not self.state.ID.nop:
+            instruction = decode(int(self.state.ID.instruction_bytes, 2))
+            instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction, self.ext_dmem,
+                                                                                          self.myRF, self.state,
                                                                                           self.nextState)
             instruction_ob.decode()
 
         # --------------------- EX stage ----------------------
-        if self.cycle > 1:
-            pass
-
-        # --------------------- MEM stage ---------------------
-        if self.cycle > 2:
-            pass
-
-        # --------------------- WB stage ----------------------
-        if self.cycle > 3:
-            pass
+        if not self.state.EX.nop:
+            self.state.EX.instruction_ob.execute()
 
         self.halted = True
-        if self.state.IF["nop"] and self.state.ID["nop"] and self.state.EX["nop"] and self.state.MEM["nop"] and \
-                self.state.WB["nop"]:
+        if self.state.IF.halt and self.state.ID.halt and self.state.EX.halt and self.state.MEM.halt and self.state.WB.halt:
             self.halted = True
 
         self.myRF.output_rf(self.cycle)  # dump RF
@@ -133,19 +134,15 @@ class FiveStageCore(Core):
         self.cycle += 1
 
     def printState(self, state, cycle):
-        printstate = ["-" * 70 + "\n", "State after executing cycle: " + str(cycle) + "\n"]
-        printstate.extend(["IF." + key + ": " + str(val) + "\n" for key, val in state.IF.items()])
-        printstate.extend(["ID." + key + ": " + str(val) + "\n" for key, val in state.ID.items()])
-        printstate.extend(["EX." + key + ": " + str(val) + "\n" for key, val in state.EX.items()])
-        printstate.extend(["MEM." + key + ": " + str(val) + "\n" for key, val in state.MEM.items()])
-        printstate.extend(["WB." + key + ": " + str(val) + "\n" for key, val in state.WB.items()])
+        print_state = "-" * 70 + "\n" + "State after executing cycle: " + str(cycle) + "\n\n"
+        print_state += str(state)
 
         if (cycle == 0):
             perm = "w"
         else:
             perm = "a"
         with open(self.opFilePath, perm) as wf:
-            wf.writelines(printstate)
+            wf.write(print_state)
 
 
 if __name__ == "__main__":

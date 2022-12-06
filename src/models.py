@@ -3,7 +3,9 @@ import json
 from bitstring import BitArray
 
 
+# TODO: set nop default to false and handle it in init for core class
 class InsMem(object):
+
     def __init__(self, name, io_dir):
         self.id = name
 
@@ -11,6 +13,8 @@ class InsMem(object):
             self.IMem = [data.replace("\n", "") for data in im.readlines()]
 
     def read_instr(self, read_address: int):
+        # DONE: Handle word addressing - use nearest lower multiple for 4 for address = x - x % 4
+        read_address = read_address - read_address % 4
         if len(self.IMem) < read_address + 4:
             raise Exception("Instruction MEM - Out of bound access")
         return "".join(self.IMem[read_address: read_address + 4])
@@ -27,6 +31,9 @@ class DataMem(object):
     def read_data(self, read_address: int) -> int:
         # read data memory
         # return 32-bit signed int value
+
+        # DONE: Handle word addressing - use nearest lower multiple for 4 for address = x - x % 4
+        read_address = read_address - read_address % 4
         if len(self.DMem) < read_address + 4:
             raise Exception("Data MEM - Out of bound access")
         return BitArray(bin="".join(self.DMem[read_address: read_address + 4])).int32
@@ -36,6 +43,9 @@ class DataMem(object):
         # Assuming data as 32 bit signed integer
 
         # Converting from int to bin
+
+        # DONE: Handle word addressing - use nearest lower multiple for 4 for address = x - x % 4
+        address = address - address % 4
         write_data = '{:032b}'.format(write_data & 0xffffffff)
 
         left, right, zeroes = [], [], []
@@ -82,46 +92,114 @@ class RegisterFile(object):
             file.writelines(op)
 
 
-class State(object):
+class IntermediateState:
+
     def __init__(self):
-        self.IF = {
-            "nop": False,
-            "PC": 0
-        }
+        pass
 
-        self.ID = {
-            "nop": True,
-            "instruction_bytes": "",
-            "instruction": None,
-            "rs1": 0,
-            "rs2": 0,
-            "imm": 0,
-            "rs1_data": 0,
-            "rs2_data": 0,
-            "rd": 0
-        }
+    def set_attributes(self, **kwargs):
+        self.__dict__.update(kwargs)
 
-        self.EX = {
-            "nop": True,
-            "alu_result": 0
-        }
 
-        self.MEM = {
-            "nop": True,
-            "data": 0
-        }
+class IFState(IntermediateState):
 
-        self.WB = {
-            "nop": True,
-            "address": 0,
-            "Store_data": 0,
-            "Rs": 0,
-            "Rt": 0,
-            "Wrt_reg_addr": 0,
-            "rd_mem": 0,
-            "wrt_mem": 0,
-            "mem_write": 0
-        }
+    def __init__(self):
+        self.nop: bool = False  # NOP operation
+        self.PC: int = 0  # Program Counter
+        self.instruction_count: int = 0  # count of instructions fetched - used for performance metrics
+        self.halt: bool = False  # Flag - identify end of program
+        super(IFState, self).__init__()
 
     def __str__(self):
-        return json.dumps(self.__dict__, indent=4)
+        return "\n".join([f"IF.{key}: {val}" for key, val in self.__dict__.items()])
+
+
+class IDState(IntermediateState):
+
+    def __init__(self):
+        self.nop: bool = False  # NOP operation
+        self.instruction_bytes: str = ""  # Binary Instruction string
+        self.instruction_ob = None  # Decoded InstructionBase object
+        self.halt: bool = False  # Flag - identify end of program
+        super(IDState, self).__init__()
+
+    def __str__(self):
+        return "\n".join([f"ID.{key}: {val}" for key, val in self.__dict__.items()])
+
+
+class EXState(IntermediateState):
+
+    def __init__(self):
+        self.nop: bool = False  # NOP operation
+        self.instruction_ob = None  # Decoded InstructionBase object
+        self.operand1: int = 0  # operand 1 for execute
+        self.operand2: int = 0  # operand 2 for execute - can be rs2 or imm or forwarded data
+        self.store_data: int = 0  # sw data - result of alu
+        self.destination_register: int = 0  # destination register - rd
+        # self.alu_operation: str = None  # not required for now
+        self.read_data_mem: bool = False  # Flag - identify if we need to read from mem (MEM Stage)
+        self.write_data_mem: bool = False  # Flag - identify if we need to write to mem (MEM Stage)
+        self.write_back_enable: bool = False  # Flag - identify if result needs to be written back to register
+        self.halt: bool = False  # Flag - identify end of program
+        super(EXState, self).__init__()
+
+    def __str__(self):
+        return "\n".join([f"EX.{key}: {val}" for key, val in self.__dict__.items()])
+
+
+class MEMState(IntermediateState):
+
+    def __init__(self):
+        self.nop: bool = False  # NOP operation
+        self.instruction_ob = None  # Decoded InstructionBase object
+        self.data_address: int = 0  # address for read / write DMEM operation
+        self.store_data: int = 0  # data to be written to MEM for SW instruction or passed to WB
+        self.write_register_addr: int = 0  # register to load data from MEM
+        self.read_data_mem: bool = False  # Flag - identify if we need to read from mem (MEM Stage)
+        self.write_data_mem: bool = False  # Flag - identify if we need to write to mem (MEM Stage)
+        self.write_back_enable: bool = False  # Flag - identify if result needs to be written back to register
+        self.halt: bool = False  # Flag - identify end of program
+        super(MEMState, self).__init__()
+
+    def __str__(self):
+        return "\n".join([f"MEM.{key}: {val}" for key, val in self.__dict__.items()])
+
+
+class WBState(IntermediateState):
+
+    def __init__(self):
+        self.nop = False  # NOP operation
+        self.instruction_ob = None  # Decoded InstructionBase object
+        self.store_data: int = 0  # data to be written to MEM for SW instruction
+        self.write_register_addr: int = 0  # register to load data from MEM
+        self.write_back_enable: bool = False  # Flag - identify if result needs to be written back to register
+        self.halt: bool = False  # Flag - identify end of program
+        super(WBState, self).__init__()
+
+    def __str__(self):
+        return "\n".join([f"WB.{key}: {val}" for key, val in self.__dict__.items()])
+
+
+class State(object):
+
+    def __init__(self):
+        self.IF: IFState = IFState()
+
+        self.ID = IDState()
+
+        self.EX = EXState()
+
+        self.MEM = MEMState()
+
+        self.WB = WBState()
+
+    def nop_init(self):
+        self.IF.nop = False
+        self.ID.nop = True
+        self.EX.nop = True
+        self.MEM.nop = True
+        self.WB.nop = True
+
+    def __str__(self):
+        # DONE: update __str__ to make use of individual State objects
+        return "\n\n".join([str(self.IF), str(self.ID), str(self.EX), str(self.MEM), str(self.WB)])
