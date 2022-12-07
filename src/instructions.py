@@ -51,9 +51,11 @@ class InstructionBase(metaclass=abc.ABCMeta):
         wb_state = WBState()
         wb_state.set_attributes(
             instruction_ob=self.state.MEM.instruction_ob,
+            nop=self.state.MEM.nop,
             store_data=self.state.MEM.store_data,
             write_register_addr=self.state.MEM.write_register_addr,
-            write_back_enable=self.state.MEM.write_back_enable
+            write_back_enable=self.state.MEM.write_back_enable,
+            halt=self.state.MEM.halt
         )
         self.nextState.WB = wb_state
 
@@ -65,25 +67,44 @@ class InstructionBase(metaclass=abc.ABCMeta):
         if self.stages == "SS":
             return self.decode_ss(*args, **kwargs)
         else:
-            return self.decode_fs(*args, **kwargs)
+            self.state = kwargs["state"]
+            self.nextState = kwargs["nextState"]
+            self.memory = kwargs["memory"]
+            self.registers = kwargs["registers"]
+            return self.state, self.nextState, self.memory, self.registers, self.decode_fs(*args, **kwargs)
 
     def execute(self, *args, **kwargs):
         if self.stages == "SS":
             return self.execute_ss(*args, **kwargs)
         else:
-            return self.execute_fs(*args, **kwargs)
+            self.state = kwargs["state"]
+            self.nextState = kwargs["nextState"]
+            self.memory = kwargs["memory"]
+            self.registers = kwargs["registers"]
+            response = self.execute_fs(*args, **kwargs)
+            return self.state, self.nextState, self.memory, self.registers, response
 
     def mem(self, *args, **kwargs):
         if self.stages == "SS":
             return self.mem_ss(*args, **kwargs)
         else:
-            return self.mem_fs(*args, **kwargs)
+            self.state = kwargs["state"]
+            self.nextState = kwargs["nextState"]
+            self.memory = kwargs["memory"]
+            self.registers = kwargs["registers"]
+            response = self.mem_fs(*args, **kwargs)
+            return self.state, self.nextState, self.memory, self.registers, response
 
     def wb(self, *args, **kwargs):
         if self.stages == "SS":
             return self.wb_ss(*args, **kwargs)
         else:
-            return self.wb_fs(*args, **kwargs)
+            self.state = kwargs["state"]
+            self.nextState = kwargs["nextState"]
+            self.memory = kwargs["memory"]
+            self.registers = kwargs["registers"]
+            response = self.wb_fs(*args, **kwargs)
+            return self.state, self.nextState, self.memory, self.registers, response
 
 
 class InstructionRBase(InstructionBase, ABC):
@@ -104,9 +125,6 @@ class InstructionRBase(InstructionBase, ABC):
         # TODO: Handle Hazards
         #   set nop for EX state
         #   will be applicable in R, I, S, B, J type instructions
-        # EX to EX
-
-        # MEM to EX
 
         ex_state.set_attributes(
             instruction_ob=self,
@@ -114,8 +132,29 @@ class InstructionRBase(InstructionBase, ABC):
             operand1=self.registers.read_rf(self.rs1),
             operand2=self.registers.read_rf(self.rs2),
             destination_register=self.rd,
-            write_back_enable=True
+            write_back_enable=True,
+            halt=self.state.ID.halt
         )
+
+        # EX to EX
+        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+            ex_state.operand1 = self.nextState.MEM.store_data
+
+        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+            ex_state.operand2 = self.nextState.MEM.store_data
+
+        # MEM to EX
+        if self.state.EX.destination_register in [self.rs1,
+                                                  self.rs2] and self.state.EX.read_data_mem and self.rs1 != 0 and self.rs2 != 0:
+            ex_state.nop = True
+            self.state.IF.PC -= 4
+
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
+            ex_state.operand1 = self.nextState.WB.store_data
+
+        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
+            ex_state.operand2 = self.nextState.WB.store_data
+
         self.nextState.EX = ex_state
 
     def execute_fs(self, *args, **kwargs):
@@ -124,7 +163,8 @@ class InstructionRBase(InstructionBase, ABC):
             instruction_ob=self,
             nop=self.state.EX.nop,
             write_register_addr=self.state.EX.destination_register,
-            write_back_enable=True
+            write_back_enable=True,
+            halt=self.state.EX.halt
         )
         self.nextState.MEM = mem_state
 
@@ -149,8 +189,22 @@ class InstructionIBase(InstructionBase, ABC):
             operand1=self.registers.read_rf(self.rs1),
             operand2=self.imm,
             destination_register=self.rd,
-            write_back_enable=True
+            write_back_enable=True,
+            halt=self.state.ID.halt
         )
+
+        # EX to EX
+        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+            ex_state.operand1 = self.nextState.MEM.store_data
+
+        # MEM to EX
+        if self.state.EX.destination_register == self.rs1 and self.state.EX.read_data_mem and self.rs1 != 0:
+            ex_state.nop = True
+            self.state.IF.PC -= 4
+
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
+            ex_state.operand1 = self.nextState.WB.store_data
+
         self.nextState.EX = ex_state
 
     def execute_fs(self, *args, **kwargs):
@@ -159,7 +213,8 @@ class InstructionIBase(InstructionBase, ABC):
             instruction_ob=self,
             nop=self.state.EX.nop,
             write_register_addr=self.state.EX.destination_register,
-            write_back_enable=True
+            write_back_enable=True,
+            halt=self.state.EX.halt
         )
         self.nextState.MEM = mem_state
 
@@ -185,8 +240,29 @@ class InstructionSBase(InstructionBase, ABC):
             operand1=self.registers.read_rf(self.rs1),
             operand2=self.imm,
             destination_register=self.rs2,
-            write_data_mem=True
+            write_data_mem=True,
+            halt=self.state.ID.halt
         )
+
+        # EX to EX
+        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+            ex_state.operand1 = self.nextState.MEM.store_data
+
+        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+            ex_state.store_data = self.nextState.MEM.store_data
+
+        # MEM to EX
+        if self.state.EX.destination_register in [self.rs1,
+                                                  self.rs2] and self.state.EX.read_data_mem and self.rs1 != 0 and self.rs2 != 0:
+            ex_state.nop = True
+            self.state.IF.PC -= 4
+
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
+            ex_state.operand1 = self.nextState.WB.store_data
+
+        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
+            ex_state.operand2 = self.nextState.WB.store_data
+
         self.nextState.EX = ex_state
 
     def execute_fs(self, *args, **kwargs):
@@ -196,7 +272,8 @@ class InstructionSBase(InstructionBase, ABC):
             nop=self.state.EX.nop,
             data_address=self.state.EX.operand1 + self.state.EX.operand1,
             store_data=self.state.EX.store_data,
-            write_data_mem=True
+            write_data_mem=True,
+            halt=self.state.ID.halt
         )
         self.nextState.MEM = mem_state
 
@@ -205,8 +282,7 @@ class InstructionSBase(InstructionBase, ABC):
             self.memory.write_data_mem(self.state.MEM.data_address, self.state.MEM.store_data)
         wb_state = WBState()
         wb_state.set_attributes(
-            instruction_ob=self,
-
+            instruction_ob=self
         )
         self.nextState.WB = wb_state
 
@@ -390,12 +466,23 @@ class LW(InstructionIBase):
         data = kwargs['mem_result']
         return self.registers.write_rf(self.rd, data)
 
+    def decode_fs(self, *args, **kwargs):
+        super(LW, self).decode_fs()
+        self.nextState.EX.read_data_mem = True
+
     def execute_fs(self, *args, **kwargs):
-        super(ADD, self).execute_fs()
+        super(LW, self).execute_fs()
         self.nextState.MEM.set_attributes(
             data_address=self.state.EX.operand1 + self.state.EX.operand2,
             read_data_mem=True
         )
+
+    def mem_fs(self, *args, **kwargs):
+        super(LW, self).mem_fs(*args, **kwargs)
+        if self.state.MEM.read_data_mem:
+            self.nextState.WB.store_data = self.memory.read_data(
+                self.state.MEM.data_address
+            )
 
 
 class SW(InstructionSBase):
@@ -405,9 +492,6 @@ class SW(InstructionSBase):
 
     def execute_ss(self, *args, **kwargs):
         return self.registers.read_rf(self.rs1) + self.imm
-
-    def execute_fs(self, *args, **kwargs):
-        self.nextState.EX["alu_result"] = self.state.ID["rs1_data"] + self.state.ID["imm"]
 
 
 class ADDERBTYPE:

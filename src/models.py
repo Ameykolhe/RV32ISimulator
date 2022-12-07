@@ -119,7 +119,7 @@ class IDState(IntermediateState):
     def __init__(self):
         self.nop: bool = False  # NOP operation
         self.instruction_bytes: str = ""  # Binary Instruction string
-        self.instruction_ob = None  # Decoded InstructionBase object
+        # self.instruction_ob = None  # Decoded InstructionBase object
         self.halt: bool = False  # Flag - identify end of program
         super(IDState, self).__init__()
 

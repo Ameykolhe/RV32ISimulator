@@ -95,35 +95,71 @@ class FiveStageCore(Core):
         # Your implementation
 
         # --------------------- WB stage ----------------------
-        if not self.state.WB.nop:
-            self.state.WB.instruction_ob.wb()
+        if not self.state.WB.halt:
+            if not self.state.WB.nop:
+                self.state, self.nextState, self.ext_dmem, self.myRF, _ = self.state.WB.instruction_ob.wb(
+                    state=self.state,
+                    nextState=self.nextState,
+                    registers=self.myRF,
+                    memory=self.ext_dmem)
 
         # --------------------- MEM stage ---------------------
-        if not self.state.MEM.nop:
-            self.state.MEM.instruction_ob.mem()
-
-        # --------------------- IF stage ----------------------
-        if not self.state.IF.nop:
-            self.nextState.ID.instruction_bytes = self.ext_imem.read_instr(self.state.IF.PC)
-            self.nextState.ID.nop = False
-            if self.nextState.ID.instruction_bytes == "1" * 32:
-                self.nextState.IF.halted = True
+        if not self.state.MEM.halt:
+            if not self.state.MEM.nop:
+                self.state, self.nextState, self.ext_dmem, self.myRF, _ = self.state.MEM.instruction_ob.mem(
+                    state=self.state,
+                    nextState=self.nextState,
+                    registers=self.myRF,
+                    memory=self.ext_dmem)
             else:
-                self.nextState.IF.PC += 4
-
-        # --------------------- ID stage ----------------------
-        if not self.state.ID.nop:
-            instruction = decode(int(self.state.ID.instruction_bytes, 2))
-            instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction, self.ext_dmem,
-                                                                                          self.myRF, self.state,
-                                                                                          self.nextState)
-            instruction_ob.decode()
+                self.nextState.WB.nop = True
+        else:
+            self.nextState.WB.halt = True
 
         # --------------------- EX stage ----------------------
-        if not self.state.EX.nop:
-            self.state.EX.instruction_ob.execute()
+        if not self.state.EX.halt:
+            if not self.state.EX.nop:
+                self.state, self.nextState, self.ext_dmem, self.myRF, _ = self.state.EX.instruction_ob.execute(
+                    state=self.state, nextState=self.nextState, registers=self.myRF, memory=self.ext_dmem)
+            else:
+                self.nextState.MEM.nop = True
+        else:
+            self.nextState.MEM.halt = True
 
-        self.halted = True
+        # --------------------- ID stage ----------------------
+        if not self.state.ID.halt:
+            try:
+                if not self.state.ID.nop:
+                    instruction = decode(int(self.state.ID.instruction_bytes, 2))
+                    instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
+                                                                                                  self.ext_dmem,
+                                                                                                  self.myRF,
+                                                                                                  self.state,
+                                                                                                  self.nextState)
+                    self.state, self.nextState, self.ext_dmem, self.myRF, _ = instruction_ob.decode(state=self.state,
+                                                                                                    nextState=self.nextState,
+                                                                                                    registers=self.myRF,
+                                                                                                    memory=self.ext_dmem)
+            except MachineDecodeError as e:
+                if "{:08x}".format(e.word) == 'ffffffff':
+                    self.nextState.ID.halt = True
+                else:
+                    raise Exception("Invalid Instruction to Decode")
+        else:
+            self.nextState.EX.halt = True
+
+        # --------------------- IF stage ----------------------
+        if not self.state.IF.halt:
+            if not self.state.IF.nop:
+                self.nextState.ID.instruction_bytes = self.ext_imem.read_instr(self.state.IF.PC)
+                self.nextState.ID.nop = False
+                if self.nextState.ID.instruction_bytes == "1" * 32:
+                    self.nextState.IF.halt = True
+                else:
+                    self.nextState.IF.PC = self.state.IF.PC + 4
+        else:
+            self.nextState.ID.halt = True
+
         if self.state.IF.halt and self.state.ID.halt and self.state.EX.halt and self.state.MEM.halt and self.state.WB.halt:
             self.halted = True
 
@@ -134,7 +170,7 @@ class FiveStageCore(Core):
         self.cycle += 1
 
     def printState(self, state, cycle):
-        print_state = "-" * 70 + "\n" + "State after executing cycle: " + str(cycle) + "\n\n"
+        print_state = "\n" + "-" * 70 + "\n" + "State after executing cycle: " + str(cycle) + "\n\n"
         print_state += str(state)
 
         if (cycle == 0):
