@@ -140,7 +140,7 @@ class InstructionRBase(InstructionBase, ABC):
         if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
             ex_state.operand1 = self.nextState.MEM.store_data
 
-        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs2 != 0:
             ex_state.operand2 = self.nextState.MEM.store_data
 
         # MEM to EX
@@ -154,6 +154,12 @@ class InstructionRBase(InstructionBase, ABC):
 
         if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
             ex_state.operand2 = self.nextState.WB.store_data
+
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.write_back_enable and self.rs1 != 0:
+            ex_state.operand1 = self.state.MEM.store_data
+
+        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.write_back_enable and self.rs2 != 0:
+            ex_state.operand2 = self.state.MEM.store_data
 
         self.nextState.EX = ex_state
 
@@ -205,6 +211,9 @@ class InstructionIBase(InstructionBase, ABC):
         if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
             ex_state.operand1 = self.nextState.WB.store_data
 
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.write_back_enable and self.rs1 != 0:
+            ex_state.operand1 = self.state.MEM.store_data
+
         self.nextState.EX = ex_state
 
     def execute_fs(self, *args, **kwargs):
@@ -239,6 +248,7 @@ class InstructionSBase(InstructionBase, ABC):
             nop=self.state.ID.nop,
             operand1=self.registers.read_rf(self.rs1),
             operand2=self.imm,
+            store_data=self.registers.read_rf(self.rs2),
             destination_register=self.rs2,
             write_data_mem=True,
             halt=self.state.ID.halt
@@ -248,7 +258,7 @@ class InstructionSBase(InstructionBase, ABC):
         if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
             ex_state.operand1 = self.nextState.MEM.store_data
 
-        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs2 != 0:
             ex_state.store_data = self.nextState.MEM.store_data
 
         # MEM to EX
@@ -261,7 +271,10 @@ class InstructionSBase(InstructionBase, ABC):
             ex_state.operand1 = self.nextState.WB.store_data
 
         if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
-            ex_state.operand2 = self.nextState.WB.store_data
+            ex_state.store_data = self.nextState.WB.store_data
+
+        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.write_back_enable and self.rs2 != 0:
+            ex_state.store_data = self.state.MEM.store_data
 
         self.nextState.EX = ex_state
 
@@ -270,7 +283,7 @@ class InstructionSBase(InstructionBase, ABC):
         mem_state.set_attributes(
             instruction_ob=self,
             nop=self.state.EX.nop,
-            data_address=self.state.EX.operand1 + self.state.EX.operand1,
+            data_address=self.state.EX.operand1 + self.state.EX.operand2,
             store_data=self.state.EX.store_data,
             write_data_mem=True,
             halt=self.state.ID.halt
