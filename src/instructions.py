@@ -365,12 +365,36 @@ class InstructionJBase(InstructionBase, ABC):
     def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile, state: State,
                  nextState: State):
         super(InstructionJBase, self).__init__(instruction, memory, registers, state, nextState)
-        self.rs1 = instruction.rs1
-        self.rs2 = instruction.rs2
+        self.rd = instruction.rd
         self.imm = instruction.imm.value
 
-    def decode_fs(self, *args, **kwargs):
+    def execute_ss(self, *args, **kwargs):
         pass
+
+    def decode_fs(self, *args, **kwargs):
+        ex_state = EXState()
+        ex_state.set_attributes(
+            instruction_ob=self,
+            store_data=self.state.IF.PC,
+            destination_register=self.rd,
+            write_back_enable=True
+        )
+
+        self.nextState.IF.PC = self.state.IF.PC + self.imm - 4
+        self.nextState.ID.nop = True
+        self.state.IF.nop = True
+
+        self.nextState.EX = ex_state
+
+    def execute_fs(self, *args, **kwargs):
+        mem_state = MEMState()
+        mem_state.set_attributes(
+            instruction_ob=self,
+            store_data=self.state.EX.store_data,
+            write_register_addr=self.rd,
+            write_back_enable=True
+        )
+        self.nextState.MEM = mem_state
 
 
 class ADD(InstructionRBase):
