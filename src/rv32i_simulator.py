@@ -24,11 +24,26 @@ class Core(object):
         self.ext_imem: InsMem = imem
         self.ext_dmem: DataMem = dmem
 
+    def calculate_performance_metrics(self):
+        cpi = float(self.cycle) / self.state.IF.instruction_count
+        ipc = 1 / cpi
+
+        result_format = f"{self.stages} Core Performance Metrics-----------------------------\n" \
+                        f"Number of cycles taken: {self.cycle}\n" \
+                        f"Cycles per instruction: {cpi}\n" \
+                        f"Instructions per cycle: {ipc}\n"
+
+        write_mode = "w" if self.stages == "Single Stage" else "a"
+
+        with open(self.ioDir + "PerformanceMetrics_Result.txt", "w") as file:
+            file.write(result_format)
+
 
 class SingleStageCore(Core):
     def __init__(self, io_dir: str, imem: InsMem, dmem: DataMem):
         super(SingleStageCore, self).__init__(io_dir + "/output/single_stage/SS_", imem, dmem)
         self.opFilePath = io_dir + "/output/single_stage/StateResult_SS.txt"
+        self.stages = "Single Stage"
 
     def step(self):
         # IF
@@ -37,6 +52,8 @@ class SingleStageCore(Core):
             self.nextState.IF.nop = True
         else:
             self.nextState.IF.PC += 4
+
+        self.nextState.IF.instruction_count = self.nextState.IF.instruction_count + 1
 
         try:
             # ID
@@ -90,6 +107,7 @@ class FiveStageCore(Core):
     def __init__(self, ioDir, imem, dmem):
         super(FiveStageCore, self).__init__(ioDir + "/output/five_stage/FS_", imem, dmem)
         self.opFilePath = ioDir + "/output/five_stage/StateResult_FS.txt"
+        self.stages = "Five Stage"
 
     def step(self):
         # Your implementation
@@ -128,23 +146,26 @@ class FiveStageCore(Core):
 
         # --------------------- ID stage ----------------------
         if not self.state.ID.halt:
-            try:
-                if not self.state.ID.nop:
-                    instruction = decode(int(self.state.ID.instruction_bytes, 2))
-                    instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
-                                                                                                  self.ext_dmem,
-                                                                                                  self.myRF,
-                                                                                                  self.state,
-                                                                                                  self.nextState)
-                    self.state, self.nextState, self.ext_dmem, self.myRF, _ = instruction_ob.decode(state=self.state,
-                                                                                                    nextState=self.nextState,
-                                                                                                    registers=self.myRF,
-                                                                                                    memory=self.ext_dmem)
-            except MachineDecodeError as e:
-                if "{:08x}".format(e.word) == 'ffffffff':
-                    self.nextState.ID.halt = True
-                else:
-                    raise Exception("Invalid Instruction to Decode")
+            if not self.state.ID.nop:
+                try:
+
+                        instruction = decode(int(self.state.ID.instruction_bytes, 2))
+                        instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
+                                                                                                      self.ext_dmem,
+                                                                                                      self.myRF,
+                                                                                                      self.state,
+                                                                                                      self.nextState)
+                        self.state, self.nextState, self.ext_dmem, self.myRF, _ = instruction_ob.decode(state=self.state,
+                                                                                                        nextState=self.nextState,
+                                                                                                        registers=self.myRF,
+                                                                                                        memory=self.ext_dmem)
+                except MachineDecodeError as e:
+                    if "{:08x}".format(e.word) == 'ffffffff':
+                        self.nextState.ID.halt = True
+                    else:
+                        raise Exception("Invalid Instruction to Decode")
+            else:
+                self.nextState.EX.nop = True
         else:
             self.nextState.EX.halt = True
 
@@ -157,6 +178,7 @@ class FiveStageCore(Core):
                     self.nextState.IF.halt = True
                 else:
                     self.nextState.IF.PC = self.state.IF.PC + 4
+                    self.nextState.IF.instruction_count = self.state.IF.instruction_count + 1
         else:
             self.nextState.ID.halt = True
 

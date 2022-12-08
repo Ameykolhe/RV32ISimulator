@@ -35,6 +35,10 @@ def main():
     dmem_ss.output_data_mem()
     dmem_fs.output_data_mem()
 
+    # dumps SS and DS Performance
+    ssCore.calculate_performance_metrics()
+    fsCore.calculate_performance_metrics()
+
 
 if __name__ == "__main__":
     # data_mem = DataMem("SS", "data")

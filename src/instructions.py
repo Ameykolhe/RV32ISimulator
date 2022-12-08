@@ -308,17 +308,57 @@ class InstructionBBase(InstructionBase, ABC):
         self.rs2 = instruction.rs2
         self.imm = instruction.imm.value
 
-    def mem_ss(self, *args, **kwargs):
-        address = kwargs['alu_result']
-        self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
+    @abc.abstractmethod
+    def take_branch(self, operand1, operand2):
+        pass
+
+    def execute_ss(self, *args, **kwargs):
+        pass
+
+    def execute_fs(self, *args, **kwargs):
+        mem_state = MEMState()
+        mem_state.instruction_ob = self
+        self.nextState.MEM = mem_state
 
     def decode_fs(self, *args, **kwargs):
-        # self.nextState.ID["rs1"] = self.rs1
-        # self.nextState.ID["rs2"] = self.rs2
-        # self.nextState.ID["imm"] = self.imm
-        # self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
-        # self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
-        pass
+
+        operand1 = self.registers.read_rf(self.rs1)
+        operand2 = self.registers.read_rf(self.rs2)
+
+        # EX to EX
+        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+            operand1 = self.nextState.MEM.store_data
+
+        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs2 != 0:
+            operand2 = self.nextState.MEM.store_data
+
+        ex_state = EXState()
+        ex_state.instruction_ob = self
+
+        # MEM to EX
+        if self.state.EX.destination_register in [self.rs1,
+                                                  self.rs2] and self.state.EX.read_data_mem and self.rs1 != 0 and self.rs2 != 0:
+            ex_state.nop = True
+            self.state.IF.PC -= 4
+
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
+            operand1 = self.nextState.WB.store_data
+
+        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
+            operand2 = self.nextState.WB.store_data
+
+        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.write_back_enable and not self.state.MEM.read_data_mem and self.rs1 != 0:
+            operand1 = self.state.MEM.store_data
+
+        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.write_back_enable and not self.state.MEM.read_data_mem and self.rs2 != 0:
+            operand2 = self.state.MEM.store_data
+
+        if self.take_branch(operand1, operand2):
+            self.nextState.IF.PC = self.state.IF.PC + self.imm - 4
+            self.nextState.ID.nop = True
+            self.state.IF.nop = True
+
+        self.nextState.EX = ex_state
 
 
 class InstructionJBase(InstructionBase, ABC):
@@ -329,16 +369,7 @@ class InstructionJBase(InstructionBase, ABC):
         self.rs2 = instruction.rs2
         self.imm = instruction.imm.value
 
-    def mem_ss(self, *args, **kwargs):
-        address = kwargs['alu_result']
-        self.memory.write_data_mem(address, '{:032b}'.format(self.registers.read_rf(self.rs2)))
-
     def decode_fs(self, *args, **kwargs):
-        # self.nextState.ID["rs1"] = self.rs1
-        # self.nextState.ID["rs2"] = self.rs2
-        # self.nextState.ID["imm"] = self.imm
-        # self.nextState.ID["rs1_data"] = self.registers.read_rf(self.rs1)
-        # self.nextState.ID["rs2_data"] = self.registers.read_rf(self.rs2)
         pass
 
 
@@ -507,6 +538,33 @@ class SW(InstructionSBase):
         return self.registers.read_rf(self.rs1) + self.imm
 
 
+class BEQ(InstructionBBase):
+
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile, state: State,
+                 nextState: State):
+        super(BEQ, self).__init__(instruction, memory, registers, state, nextState)
+
+    def take_branch(self, operand1, operand2):
+        return operand1 == operand2
+
+
+class BNE(InstructionBBase):
+
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile, state: State,
+                 nextState: State):
+        super(BNE, self).__init__(instruction, memory, registers, state, nextState)
+
+    def take_branch(self, operand1, operand2):
+        return operand1 != operand2
+
+
+class JAL(InstructionJBase):
+
+    def __init__(self, instruction: Instruction, memory: DataMem, registers: RegisterFile, state: State,
+                 nextState: State):
+        super(JAL, self).__init__(instruction, memory, registers, state, nextState)
+
+
 class ADDERBTYPE:
     def __init__(self, instruction: Instruction, state: State(), registers: RegisterFile):
         self.instruction = instruction
@@ -519,14 +577,14 @@ class ADDERBTYPE:
     def get_pc(self, *args, **kwargs):
         if self.instruction.mnemonic == 'beq':
             if self.registers.read_rf(self.rs1) == self.registers.read_rf(self.rs2):
-                return self.state.IF["PC"] + self.imm
+                return self.state.IF.PC + self.imm
             else:
-                return self.state.IF["PC"] + 4
+                return self.state.IF.PC + 4
         else:
             if self.registers.read_rf(self.rs1) != self.registers.read_rf(self.rs2):
-                return self.state.IF["PC"] + self.imm
+                return self.state.IF.PC + self.imm
             else:
-                return self.state.IF["PC"] + 4
+                return self.state.IF.PC + 4
 
 
 class ADDERJTYPE:
@@ -538,8 +596,8 @@ class ADDERJTYPE:
         self.imm = instruction.imm.value
 
     def get_pc(self, *args, **kwargs):
-        self.registers.write_rf(self.rd, self.state.IF["PC"] + 4)
-        return self.state.IF["PC"] + self.imm
+        self.registers.write_rf(self.rd, self.state.IF.PC + 4)
+        return self.state.IF.PC + self.imm
 
 
 def get_instruction_class(mnemonic: str):
