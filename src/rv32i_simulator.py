@@ -109,21 +109,41 @@ class FiveStageCore(Core):
         self.opFilePath = ioDir + "/output/five_stage/StateResult_FS.txt"
         self.stages = "Five Stage"
 
+    def print_current_instruction(self, cycle, stage, instruction):
+        if issubclass(type(instruction), Instruction):
+            print(f"{cycle}\t{stage}\t{instruction}")
+        else:
+            if all([x in ["0", "1"] for x in instruction]):
+                try:
+                    print(f"{cycle}\t{stage}\t{decode(int(instruction, 2))}")
+                except MachineDecodeError as e:
+                    print(f"{cycle}\t{stage}\tHalt")
+            else:
+                print(f"{cycle}\t{stage}\t{instruction}")
+
     def step(self):
         # Your implementation
 
         # --------------------- WB stage ----------------------
         if not self.state.WB.halt:
             if not self.state.WB.nop:
+                self.print_current_instruction(self.cycle, "WB", self.state.WB.instruction_ob.instruction)
+
                 self.state, self.nextState, self.ext_dmem, self.myRF, _ = self.state.WB.instruction_ob.wb(
                     state=self.state,
                     nextState=self.nextState,
                     registers=self.myRF,
                     memory=self.ext_dmem)
+            else:
+                self.print_current_instruction(self.cycle, "WB", "nop")
+        else:
+            self.print_current_instruction(self.cycle, "WB", "Halt")
 
         # --------------------- MEM stage ---------------------
         if not self.state.MEM.halt:
             if not self.state.MEM.nop:
+                self.print_current_instruction(self.cycle, "MEM", self.state.MEM.instruction_ob.instruction)
+
                 self.state, self.nextState, self.ext_dmem, self.myRF, _ = self.state.MEM.instruction_ob.mem(
                     state=self.state,
                     nextState=self.nextState,
@@ -131,34 +151,42 @@ class FiveStageCore(Core):
                     memory=self.ext_dmem)
             else:
                 self.nextState.WB.nop = True
+                self.print_current_instruction(self.cycle, "MEM", "nop")
         else:
             self.nextState.WB.halt = True
+            self.print_current_instruction(self.cycle, "MEM", "Halt")
 
         # --------------------- EX stage ----------------------
         if not self.state.EX.halt:
             if not self.state.EX.nop:
+                self.print_current_instruction(self.cycle, "EX", self.state.EX.instruction_ob.instruction)
+
                 self.state, self.nextState, self.ext_dmem, self.myRF, _ = self.state.EX.instruction_ob.execute(
                     state=self.state, nextState=self.nextState, registers=self.myRF, memory=self.ext_dmem)
             else:
                 self.nextState.MEM.nop = True
+                self.print_current_instruction(self.cycle, "EX", "nop")
         else:
             self.nextState.MEM.halt = True
+            self.print_current_instruction(self.cycle, "EX", "Halt")
 
         # --------------------- ID stage ----------------------
         if not self.state.ID.halt:
             if not self.state.ID.nop:
+                self.print_current_instruction(self.cycle, "ID", self.state.ID.instruction_bytes)
+
                 try:
 
-                        instruction = decode(int(self.state.ID.instruction_bytes, 2))
-                        instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
-                                                                                                      self.ext_dmem,
-                                                                                                      self.myRF,
-                                                                                                      self.state,
-                                                                                                      self.nextState)
-                        self.state, self.nextState, self.ext_dmem, self.myRF, _ = instruction_ob.decode(state=self.state,
-                                                                                                        nextState=self.nextState,
-                                                                                                        registers=self.myRF,
-                                                                                                        memory=self.ext_dmem)
+                    instruction = decode(int(self.state.ID.instruction_bytes, 2))
+                    instruction_ob: InstructionBase = get_instruction_class(instruction.mnemonic)(instruction,
+                                                                                                  self.ext_dmem,
+                                                                                                  self.myRF,
+                                                                                                  self.state,
+                                                                                                  self.nextState)
+                    self.state, self.nextState, self.ext_dmem, self.myRF, _ = instruction_ob.decode(state=self.state,
+                                                                                                    nextState=self.nextState,
+                                                                                                    registers=self.myRF,
+                                                                                                    memory=self.ext_dmem)
                 except MachineDecodeError as e:
                     if "{:08x}".format(e.word) == 'ffffffff':
                         self.nextState.ID.halt = True
@@ -166,8 +194,10 @@ class FiveStageCore(Core):
                         raise Exception("Invalid Instruction to Decode")
             else:
                 self.nextState.EX.nop = True
+                self.print_current_instruction(self.cycle, "ID", "nop")
         else:
             self.nextState.EX.halt = True
+            self.print_current_instruction(self.cycle, "ID", "Halt")
 
         # --------------------- IF stage ----------------------
         if not self.state.IF.halt:
@@ -179,11 +209,17 @@ class FiveStageCore(Core):
                 else:
                     self.nextState.IF.PC = self.state.IF.PC + 4
                     self.nextState.IF.instruction_count = self.state.IF.instruction_count + 1
+
+                self.print_current_instruction(self.cycle, "IF", self.nextState.ID.instruction_bytes)
+            else:
+                self.print_current_instruction(self.cycle, "IF", "nop")
         else:
             self.nextState.ID.halt = True
+            self.print_current_instruction(self.cycle, "IF", "Halt")
 
         if self.state.IF.halt and self.state.ID.halt and self.state.EX.halt and self.state.MEM.halt and self.state.WB.halt:
             self.halted = True
+            self.print_current_instruction(self.cycle, "--", "End of Simulation")
 
         self.myRF.output_rf(self.cycle)  # dump RF
         self.printState(self.nextState, self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
