@@ -141,6 +141,7 @@ class InstructionRBase(InstructionBase, ABC):
             ex_state.nop = True
             self.state.IF.PC -= 4
             self.nextState.EX = ex_state
+            self.nextState.IF.instruction_count = self.nextState.IF.instruction_count - 1
             return
 
         # Forwarding
@@ -199,6 +200,7 @@ class InstructionIBase(InstructionBase, ABC):
             ex_state.nop = True
             self.state.IF.PC -= 4
             self.nextState.EX = ex_state
+            self.nextState.IF.instruction_count = self.nextState.IF.instruction_count - 1
             return
 
         # Forwarding
@@ -253,6 +255,7 @@ class InstructionSBase(InstructionBase, ABC):
             ex_state.nop = True
             self.state.IF.PC -= 4
             self.nextState.EX = ex_state
+            self.nextState.IF.instruction_count = self.nextState.IF.instruction_count - 1
             return
 
         # Forwarding
