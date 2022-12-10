@@ -6,10 +6,17 @@ from bitstring import BitArray
 # TODO: set nop default to false and handle it in init for core class
 class InsMem(object):
 
-    def __init__(self, name, io_dir):
+    def __init__(self, name, io_dir, **kwargs):
         self.id = name
 
-        with open(io_dir + "/imem.txt") as im:
+        if "ioTest" not in kwargs:
+            input_file_path = io_dir
+        else:
+            input_file_path = kwargs["ioTest"] + f"/TC{kwargs['tc']}"
+
+        print(input_file_path)
+
+        with open(input_file_path + "/imem.txt") as im:
             self.IMem = [data.replace("\n", "") for data in im.readlines()]
 
     def read_instr(self, read_address: int):
@@ -21,10 +28,16 @@ class InsMem(object):
 
 
 class DataMem(object):
-    def __init__(self, name, io_dir):
+    def __init__(self, name, io_dir, **kwargs):
         self.id = name
         self.io_dir = io_dir
-        with open(io_dir + "/dmem.txt") as dm:
+
+        if "ioTest" not in kwargs:
+            input_file_path = io_dir
+        else:
+            input_file_path = kwargs["ioTest"] + f"/TC{kwargs['tc']}"
+
+        with open(input_file_path + "/dmem.txt") as dm:
             self.DMem = [data.replace("\n", "") for data in dm.readlines()]
             self.DMem += ["0" * 8] * (1000 - len(self.DMem))
 
