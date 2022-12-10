@@ -132,34 +132,35 @@ class InstructionRBase(InstructionBase, ABC):
             operand1=self.registers.read_rf(self.rs1),
             operand2=self.registers.read_rf(self.rs2),
             destination_register=self.rd,
-            write_back_enable=True,
-            halt=self.state.ID.halt
+            write_back_enable=True
         )
 
-        # EX to EX
-        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
-            ex_state.operand1 = self.nextState.MEM.store_data
-
-        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs2 != 0:
-            ex_state.operand2 = self.nextState.MEM.store_data
-
-        # MEM to EX
+        # Stall
         if self.state.EX.destination_register in [self.rs1,
                                                   self.rs2] and self.state.EX.read_data_mem and self.rs1 != 0 and self.rs2 != 0:
             ex_state.nop = True
             self.state.IF.PC -= 4
+            self.nextState.EX = ex_state
+            return
 
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
-            ex_state.operand1 = self.nextState.WB.store_data
-
-        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
-            ex_state.operand2 = self.nextState.WB.store_data
-
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.write_back_enable and self.rs1 != 0:
+        # Forwarding
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs1 and self.rs1 != 0:
+            # forwardA = 10
             ex_state.operand1 = self.state.MEM.store_data
 
-        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.write_back_enable and self.rs2 != 0:
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs2 and self.rs2 != 0:
+            # forwardB = 10
             ex_state.operand2 = self.state.MEM.store_data
+
+        if self.state.WB.write_back_enable and self.state.WB.write_register_addr != 0 and not (
+                self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs1) and self.state.WB.write_register_addr == self.rs1 and self.rs1 != 0:
+            # forwardA = 01
+            ex_state.operand1 = self.state.WB.store_data
+
+        if self.state.WB.write_back_enable and self.state.WB.write_register_addr != 0 and not (
+                self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs2) and self.state.WB.write_register_addr == self.rs2 and self.rs2 != 0:
+            # forwardB = 01
+            ex_state.operand2 = self.state.WB.store_data
 
         self.nextState.EX = ex_state
 
@@ -199,20 +200,22 @@ class InstructionIBase(InstructionBase, ABC):
             halt=self.state.ID.halt
         )
 
-        # EX to EX
-        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
-            ex_state.operand1 = self.nextState.MEM.store_data
-
-        # MEM to EX
+        # Stall
         if self.state.EX.destination_register == self.rs1 and self.state.EX.read_data_mem and self.rs1 != 0:
             ex_state.nop = True
             self.state.IF.PC -= 4
+            self.nextState.EX = ex_state
+            return
 
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
-            ex_state.operand1 = self.nextState.WB.store_data
-
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.write_back_enable and self.rs1 != 0:
+        # Forwarding
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs1 and self.rs1 != 0:
+            # forwardA = 10
             ex_state.operand1 = self.state.MEM.store_data
+
+        if self.state.WB.write_back_enable and self.state.WB.write_register_addr != 0 and not (
+                self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs1) and self.state.WB.write_register_addr == self.rs1 and self.rs1 != 0:
+            # forwardA = 01
+            ex_state.operand1 = self.state.WB.store_data
 
         self.nextState.EX = ex_state
 
@@ -253,28 +256,32 @@ class InstructionSBase(InstructionBase, ABC):
             write_data_mem=True,
             halt=self.state.ID.halt
         )
-
-        # EX to EX
-        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
-            ex_state.operand1 = self.nextState.MEM.store_data
-
-        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs2 != 0:
-            ex_state.store_data = self.nextState.MEM.store_data
-
-        # MEM to EX
+        # Stall
         if self.state.EX.destination_register in [self.rs1,
                                                   self.rs2] and self.state.EX.read_data_mem and self.rs1 != 0 and self.rs2 != 0:
             ex_state.nop = True
             self.state.IF.PC -= 4
+            self.nextState.EX = ex_state
+            return
 
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
-            ex_state.operand1 = self.nextState.WB.store_data
+        # Forwarding
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs1 and self.rs1 != 0:
+            # forwardA = 10
+            ex_state.operand1 = self.state.MEM.store_data
 
-        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
-            ex_state.store_data = self.nextState.WB.store_data
-
-        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.write_back_enable and self.rs2 != 0:
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs2 and self.rs2 != 0:
+            # forwardB = 10
             ex_state.store_data = self.state.MEM.store_data
+
+        if self.state.WB.write_back_enable and self.state.WB.write_register_addr != 0 and not (
+                self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs1) and self.state.WB.write_register_addr == self.rs1 and self.rs1 != 0:
+            # forwardA = 01
+            ex_state.operand1 = self.state.WB.store_data
+
+        if self.state.WB.write_back_enable and self.state.WB.write_register_addr != 0 and not (
+                self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and self.state.MEM.write_register_addr == self.rs2) and self.state.WB.write_register_addr == self.rs2 and self.rs2 != 0:
+            # forwardB = 01
+            ex_state.store_data = self.state.WB.store_data
 
         self.nextState.EX = ex_state
 
@@ -318,6 +325,7 @@ class InstructionBBase(InstructionBase, ABC):
     def execute_fs(self, *args, **kwargs):
         mem_state = MEMState()
         mem_state.instruction_ob = self
+        mem_state.nop = True
         self.nextState.MEM = mem_state
 
     def decode_fs(self, *args, **kwargs):
@@ -325,38 +333,28 @@ class InstructionBBase(InstructionBase, ABC):
         operand1 = self.registers.read_rf(self.rs1)
         operand2 = self.registers.read_rf(self.rs2)
 
-        # EX to EX
-        if self.rs1 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs1 != 0:
+        if self.state.EX.write_back_enable and self.state.EX.destination_register != 0 and self.state.EX.destination_register == self.rs1 and self.rs1 != 0:
             operand1 = self.nextState.MEM.store_data
 
-        if self.rs2 == self.state.EX.destination_register and self.state.EX.write_back_enable and self.rs2 != 0:
+        if self.state.EX.write_back_enable and self.state.EX.destination_register != 0 and self.state.EX.destination_register == self.rs2 and self.rs2 != 0:
             operand2 = self.nextState.MEM.store_data
+
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and not (
+                self.state.EX.write_back_enable and self.state.EX.destination_register != 0 and self.state.EX.destination_register == self.rs1) and self.state.MEM.write_register_addr == self.rs1 and self.rs1 != 0:
+            operand1 = self.nextState.WB.store_data
+
+        if self.state.MEM.write_back_enable and self.state.MEM.write_register_addr != 0 and not (
+                self.state.EX.write_back_enable and self.state.EX.destination_register != 0 and self.state.EX.destination_register == self.rs2) and self.state.MEM.write_register_addr == self.rs2 and self.rs2 != 0:
+            operand2 = self.nextState.WB.store_data
 
         ex_state = EXState()
         ex_state.instruction_ob = self
-
-        # MEM to EX
-        if self.state.EX.destination_register in [self.rs1,
-                                                  self.rs2] and self.state.EX.read_data_mem and self.rs1 != 0 and self.rs2 != 0:
-            ex_state.nop = True
-            self.state.IF.PC -= 4
-
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.read_data_mem and self.rs1 != 0:
-            operand1 = self.nextState.WB.store_data
-
-        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.read_data_mem and self.rs2 != 0:
-            operand2 = self.nextState.WB.store_data
-
-        if self.state.MEM.write_register_addr == self.rs1 and self.state.MEM.write_back_enable and not self.state.MEM.read_data_mem and self.rs1 != 0:
-            operand1 = self.state.MEM.store_data
-
-        if self.state.MEM.write_register_addr == self.rs2 and self.state.MEM.write_back_enable and not self.state.MEM.read_data_mem and self.rs2 != 0:
-            operand2 = self.state.MEM.store_data
 
         if self.take_branch(operand1, operand2):
             self.nextState.IF.PC = self.state.IF.PC + self.imm - 4
             self.nextState.ID.nop = True
             self.state.IF.nop = True
+        ex_state.nop = True
 
         self.nextState.EX = ex_state
 
