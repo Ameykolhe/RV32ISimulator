@@ -136,7 +136,6 @@ class FiveStageCore(Core):
         else:
             self.print_current_instruction(self.cycle, "WB", "nop")
 
-
         # --------------------- MEM stage ---------------------
         if not self.state.MEM.nop:
             self.print_current_instruction(self.cycle, "MEM", self.state.MEM.instruction_ob.instruction)
@@ -149,7 +148,6 @@ class FiveStageCore(Core):
         else:
             self.nextState.WB.nop = True
             self.print_current_instruction(self.cycle, "MEM", "nop")
-
 
         # --------------------- EX stage ----------------------
         if not self.state.EX.nop:
@@ -193,7 +191,7 @@ class FiveStageCore(Core):
                 self.nextState.IF.nop = True
             else:
                 self.nextState.IF.PC = self.state.IF.PC + 4
-                self.nextState.IF.instruction_count = self.state.IF.instruction_count + 1
+                self.nextState.IF.instruction_count = self.nextState.IF.instruction_count + 1
 
             self.print_current_instruction(self.cycle, "IF", self.nextState.ID.instruction_bytes)
         else:
@@ -203,6 +201,7 @@ class FiveStageCore(Core):
         if (self.state.IF.halt or self.state.IF.nop) and (self.state.ID.halt or self.state.ID.nop) and (
                 self.state.EX.halt or self.state.EX.nop) and (self.state.MEM.halt or self.state.MEM.nop) and (
                 self.state.WB.halt or self.state.WB.nop):
+            self.nextState.IF.instruction_count = self.state.IF.instruction_count + 1
             self.halted = True
             self.print_current_instruction(self.cycle, "--", "End of Simulation")
 
