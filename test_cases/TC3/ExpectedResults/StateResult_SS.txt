@@ -1,0 +1,24 @@
+State after executing cycle:	0
+IF.PC:	4
+IF.nop:	0
+State after executing cycle:	1
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	2
+IF.PC:	12
+IF.nop:	0
+State after executing cycle:	3
+IF.PC:	4
+IF.nop:	0
+State after executing cycle:	4
+IF.PC:	8
+IF.nop:	0
+State after executing cycle:	5
+IF.PC:	16
+IF.nop:	0
+State after executing cycle:	6
+IF.PC:	16
+IF.nop:	1
+State after executing cycle:	7
+IF.PC:	16
+IF.nop:	1
