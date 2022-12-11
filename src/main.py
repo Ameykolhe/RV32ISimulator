@@ -11,7 +11,7 @@ def main():
     parser.add_argument('--iodir', default="", type=str, help='Directory containing the input files.')
     parser.add_argument("--testpath", default=None, type=str, help="Test Case Path")
     args = parser.parse_args()
-    test_case_number = 0
+    test_case_number = 1
 
     ioDir = os.path.abspath(args.iodir)
     ioTest = os.path.abspath(args.testpath)
@@ -19,9 +19,9 @@ def main():
     print("IO Directory:", ioDir)
     print("Test Path:", ioTest)
 
-    imem = InsMem("Imem", ioDir, ioTest=ioTest, tc= test_case_number)
-    dmem_ss = DataMem("SS", ioDir, ioTest=ioTest, tc= test_case_number)
-    dmem_fs = DataMem("FS", ioDir, ioTest=ioTest, tc= test_case_number)
+    imem = InsMem("Imem", ioDir, ioTest=ioTest, tc=test_case_number)
+    dmem_ss = DataMem("SS", ioDir, ioTest=ioTest, tc=test_case_number)
+    dmem_fs = DataMem("FS", ioDir, ioTest=ioTest, tc=test_case_number)
 
     ssCore = SingleStageCore(ioDir, imem, dmem_ss)
     fsCore = FiveStageCore(ioDir, imem, dmem_fs)

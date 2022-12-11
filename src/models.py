@@ -75,9 +75,9 @@ class DataMem(object):
 
     def output_data_mem(self):
         if self.id == 'SS':
-            res_path = self.io_dir + "/output/single_stage/" + self.id + "_DMEMResult.txt"
+            res_path = self.io_dir + "/" + self.id + "_DMEMResult.txt"
         else:
-            res_path = self.io_dir + "/output/five_stage/" + self.id + "_DMEMResult.txt"
+            res_path = self.io_dir + "/" + self.id + "_DMEMResult.txt"
         with open(res_path, "w") as rp:
             rp.writelines([str(data) + "\n" for data in self.DMem])
 

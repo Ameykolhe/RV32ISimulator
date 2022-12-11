@@ -41,8 +41,8 @@ class Core(object):
 
 class SingleStageCore(Core):
     def __init__(self, io_dir: str, imem: InsMem, dmem: DataMem):
-        super(SingleStageCore, self).__init__(io_dir + "/output/single_stage/SS_", imem, dmem)
-        self.opFilePath = io_dir + "/output/single_stage/StateResult_SS.txt"
+        super(SingleStageCore, self).__init__(io_dir + "/SS_", imem, dmem)
+        self.opFilePath = io_dir + "/StateResult_SS.txt"
         self.stages = "Single Stage"
 
     def step(self):
@@ -105,8 +105,8 @@ class SingleStageCore(Core):
 
 class FiveStageCore(Core):
     def __init__(self, ioDir, imem, dmem):
-        super(FiveStageCore, self).__init__(ioDir + "/output/five_stage/FS_", imem, dmem)
-        self.opFilePath = ioDir + "/output/five_stage/StateResult_FS.txt"
+        super(FiveStageCore, self).__init__(ioDir + "/FS_", imem, dmem)
+        self.opFilePath = ioDir + "/StateResult_FS.txt"
         self.stages = "Five Stage"
 
     def print_current_instruction(self, cycle, stage, instruction):
