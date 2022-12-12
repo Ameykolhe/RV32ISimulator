@@ -35,7 +35,7 @@ class Core(object):
 
         write_mode = "w" if self.stages == "Single Stage" else "a"
 
-        with open(self.ioDir + "PerformanceMetrics_Result.txt", "w") as file:
+        with open(self.ioDir[:-3] + "PerformanceMetrics_Result.txt", write_mode) as file:
             file.write(result_format)
 
 
