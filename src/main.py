@@ -9,7 +9,7 @@ def main():
     # parse arguments for input file location
     parser = argparse.ArgumentParser(description='RV32I processor')
     parser.add_argument('--iodir', default="", type=str, help='Directory containing the input files.')
-    parser.add_argument("--testpath", default=None, type=str, help="Test Case Path")
+    parser.add_argument("--testpath", default="", type=str, help="Test Case Path")
     args = parser.parse_args()
     test_case_number = 1
 
@@ -19,9 +19,14 @@ def main():
     print("IO Directory:", ioDir)
     print("Test Path:", ioTest)
 
-    imem = InsMem("Imem", ioDir, ioTest=ioTest, tc=test_case_number)
-    dmem_ss = DataMem("SS", ioDir, ioTest=ioTest, tc=test_case_number)
-    dmem_fs = DataMem("FS", ioDir, ioTest=ioTest, tc=test_case_number)
+    if ioTest == "":
+        imem = InsMem("Imem", ioDir, ioTest=ioTest, tc=test_case_number)
+        dmem_ss = DataMem("SS", ioDir, ioTest=ioTest, tc=test_case_number)
+        dmem_fs = DataMem("FS", ioDir, ioTest=ioTest, tc=test_case_number)
+    else:
+        imem = InsMem("Imem", ioDir)
+        dmem_ss = DataMem("SS", ioDir)
+        dmem_fs = DataMem("FS", ioDir)
 
     ssCore = SingleStageCore(ioDir, imem, dmem_ss)
     fsCore = FiveStageCore(ioDir, imem, dmem_fs)
